@@ -1,21 +1,40 @@
 <script src="{{ url_for('static', filename='js/parishes.js') }}?v={{ asset_version }}"></script>
 <script>
-  // Desenho estático das 23 freguesias na prancha (sem interação).
-  (async function () {
-    const el = document.getElementById('auth-plate-map');
-    const geo = el && await TownlyParishes.load();
-    if (!geo) return;
-    TownlyParishes.svgMap(el, geo, { tooltip: false, heat: false });
-    el.querySelectorAll('[tabindex]').forEach(p => { p.removeAttribute('tabindex'); p.removeAttribute('role'); });
+  // Saudação conforme a hora do dia («Boa tarde — bem-vindo de volta»).
+  (function () {
+    const el = document.querySelector('[data-greeting]');
+    if (!el) return;
+    const h = new Date().getHours();
+    const hello = h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 20 ? 'Boa tarde' : 'Boa noite';
+    el.textContent = `${hello} — ${el.dataset.greeting}`;
   })();
-  // Mostrar / esconder a palavra-passe
+
+  // As 23 freguesias desenham-se a dourado sobre a fotografia (traço animado).
+  (async function () {
+    const el = document.getElementById('auth-map');
+    const geo = el && window.TownlyParishes && await TownlyParishes.load();
+    if (!geo) return;
+    const svg = TownlyParishes.svgMap(el, geo, { tooltip: false, heat: false });
+    svg.querySelectorAll('.tu-parish').forEach((p, i) => {
+      p.removeAttribute('tabindex'); p.removeAttribute('role');
+      p.setAttribute('pathLength', '1');
+      p.style.animationDelay = `${(i % 23) * 60}ms`;
+    });
+    el.classList.add('is-drawn');
+  })();
+
+  // Mostrar / esconder a palavra-passe (ícone do olho, como na maioria dos sites)
   document.querySelectorAll('[data-reveal]').forEach(btn => {
     const input = document.getElementById(btn.dataset.reveal);
     btn.addEventListener('click', () => {
       const show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      btn.textContent = show ? 'Esconder' : 'Mostrar';
+      const label = show ? 'Esconder palavra-passe' : 'Mostrar palavra-passe';
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
       btn.setAttribute('aria-pressed', String(show));
+      btn.classList.toggle('is-visible', show);
+      input.focus({ preventScroll: true });
     });
   });
 </script>

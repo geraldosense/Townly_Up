@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Regras da comunidade{% endblock %}
+{% block content %}
+<article class="tu-prose">
+  <div class="tu-eyebrow">Comunidade</div>
+  <h1>Regras da comunidade</h1>
+  <p class="tu-prose-lede">O Townly Up funciona porque cada pedido é verdadeiro, claro e respeitador. Ao criar conta, aceita estas regras.</p>
+
+  <h2>O que publicar</h2>
+  <ul>
+    <li>Problemas reais no espaço público do concelho: vias e passeios, iluminação, limpeza e resíduos, espaços verdes, sinalização, água e saneamento, mobiliário urbano.</li>
+    <li>Fotografias tiradas por si, que mostrem o problema e o local.</li>
+    <li>Descrições objetivas: o que vê, onde, e há quanto tempo, se souber.</li>
+  </ul>
+
+  <h2>O que não publicar</h2>
+  <ul>
+    <li>Fotografias que identifiquem pessoas, crianças ou matrículas.</li>
+    <li>Conteúdo sexual, violento, ofensivo ou discriminatório.</li>
+    <li>Queixas sobre pessoas concretas, vizinhos ou funcionários — o serviço é sobre o espaço público.</li>
+    <li>Publicidade, pedidos repetidos de propósito ou informação falsa.</li>
+    <li>Situações de emergência — nesses casos ligue <b>112</b>.</li>
+  </ul>
+
+  <h2>Moderação</h2>
+  <p>Os pedidos são revistos pelas entidades responsáveis, que podem rejeitá-los com uma explicação. Fotografias impróprias podem ser recusadas automaticamente, e contas que insistam em violar estas regras são suspensas.</p>
+
+  <h2>Respeito</h2>
+  <p>Do outro lado estão técnicos e voluntários que tratam muitos pedidos. Uma descrição clara ajuda mais do que um tom zangado.</p>
+
+  <p class="small text-muted mt-4">Ver também: <a href="{{ url_for('privacy') }}">Privacidade e dados</a> · <a href="{{ url_for('how_it_works') }}">Como funciona</a></p>
+</article>
+{% endblock %}

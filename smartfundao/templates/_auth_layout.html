@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{# Páginas de acesso em ecrã inteiro.
+   Esquerda: fotografia de Castelo Novo, logótipo, as 23 freguesias desenhadas a dourado e números reais.
+   Centro: corte inclinado com duplo filete e um selo com o logótipo sobre a fronteira.
+   Direita: formulário sobre papel com curvas de nível, separadores Entrar / Criar conta. #}
+{% block body_class %}tu-auth-body{% endblock %}
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block flashes %}{% endblock %}
+{% block main_class %}p-0{% endblock %}
+{% block hero %}
+<div class="tu-split">
+  <aside class="tu-split-photo" aria-label="Townly Up">
+    <div class="tu-split-photo-img" aria-hidden="true"></div>
+    <div class="tu-split-photo-shade" aria-hidden="true"></div>
+    <div class="tu-split-map" id="auth-map" aria-hidden="true"></div>
+    <svg class="tu-split-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <line class="l1" x1="100" y1="0" x2="84" y2="100" />
+      <line class="l2" x1="97.6" y1="0" x2="81.6" y2="100" />
+    </svg>
+    <a class="tu-split-brand" href="{{ url_for('index') }}">
+      {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+      <span class="tu-split-wordmark">Townly <b>Up</b></span>
+    </a>
+    <a class="tu-split-back tu-split-back-photo" href="{{ url_for('index') }}">← Voltar ao site</a>
+    <div class="tu-split-quote">
+      <p class="tu-split-kicker">Concelho do Fundão</p>
+      <p class="tu-split-title">Cada rua do concelho tem quem olhe por ela.</p>
+      <dl class="tu-split-figures">
+        <div><dt>{{ auth_figures.active }}</dt><dd>em curso</dd></div>
+        <div><dt>{{ auth_figures.resolved }}</dt><dd>{{ 'resolvida' if auth_figures.resolved == 1 else 'resolvidas' }}</dd></div>
+        <div><dt>23</dt><dd>freguesias</dd></div>
+      </dl>
+    </div>
+  </aside>
+
+  {# Selo sobre a fronteira inclinada #}
+  <div class="tu-split-seal" aria-hidden="true">
+    {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+  </div>
+
+  <div class="tu-split-form">
+    <div class="tu-split-top">
+      <a class="tu-split-back" href="{{ url_for('index') }}">← Voltar ao site</a>
+    </div>
+    <section class="tu-split-panel">
+      {% set ep = request.endpoint %}
+      <nav class="tu-auth-tabs" aria-label="Acesso">
+        <a href="{{ url_for('login') }}" class="{{ 'is-active' if ep == 'login' }}" {{ 'aria-current=page' if ep == 'login' }}>Entrar</a>
+        <a href="{{ url_for('register') }}" class="{{ 'is-active' if ep == 'register' }}" {{ 'aria-current=page' if ep == 'register' }}>Criar conta</a>
+        <span class="tu-auth-tabs-ink" aria-hidden="true"></span>
+      </nav>
+      {% include "_flashes.html" %}
+      {% block auth_form %}{% endblock %}
+    </section>
+    <p class="tu-split-legal">Projeto académico · não é um serviço oficial da Câmara Municipal do Fundão · <a href="{{ url_for('privacy') }}">Privacidade</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% include "_auth_scripts.html" %}{% endblock %}

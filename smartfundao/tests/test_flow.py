@@ -73,8 +73,14 @@ def incident_data(**overrides):
     return data
 
 
-def create_incident(client):
-    resp = client.post("/incidents/new", data=incident_data(), content_type="multipart/form-data")
+def create_incident(client, **overrides):
+    """Cria uma ocorrência. Se o sistema a achar repetida, confirma «é outro problema» (como o munícipe faria)."""
+    resp = client.post("/incidents/new", data=incident_data(**overrides), content_type="multipart/form-data")
+    if resp.status_code == 400:
+        ids = re.findall(r'data-duplicate-id="(\d+)"', resp.get_data(as_text=True))
+        assert ids, resp.get_data(as_text=True)[:500]
+        resp = client.post("/incidents/new", data=incident_data(not_duplicate=ids, **overrides),
+                           content_type="multipart/form-data")
     assert resp.status_code == 302
     return int(re.search(r"/incidents/(\d+)/enviada", resp.headers["Location"]).group(1))
 
@@ -201,7 +207,7 @@ def test_ta04_ta05_fluxo_completo_e_historico(client, app):
     assert "Pavimento reparado." in detail and "Equipa deslocada ao local." in detail
     with app.app_context():
         assert len(sv.get_history(get_db(), incident_id)) == 4
-        assert get_db().execute("SELECT COUNT(*) FROM notifications").fetchone()[0] == 3
+        assert get_db().execute("SELECT COUNT(*) FROM notifications WHERE kind = 'status'").fetchone()[0] == 3
 
 
 def test_transicao_nao_permitida(client, app):

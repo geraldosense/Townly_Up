@@ -127,7 +127,7 @@ def confirm(db, user, incident_id, kind):
         raise sv.ValidationError({"kind": "Tipo de confirmação inválido."})
     if user["role"] != "citizen":
         raise PermissionError("Apenas munícipes podem confirmar ocorrências.")
-    incident = db.execute("SELECT * FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+    incident = db.execute("SELECT * FROM incidents WHERE id = ? AND deleted_at IS NULL", (incident_id,)).fetchone()
     if incident is None:
         raise LookupError("Ocorrência não encontrada.")
     if incident["status"] not in sv.ACTIVE_STATUSES:
@@ -165,7 +165,7 @@ def nearby(db, lat, lng, radius_m=NEARBY_RADIUS_M, category_id=None, exclude_id=
     # Pré-filtro rápido por "caixa" de coordenadas; depois distância exata.
     dlat = radius_m / 111_320
     dlng = radius_m / (111_320 * max(math.cos(math.radians(lat)), 0.01))
-    sql = sv.INCIDENT_SELECT + f""" WHERE i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
+    sql = sv.INCIDENT_SELECT + f""" WHERE i.deleted_at IS NULL AND i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
         AND i.latitude BETWEEN ? AND ? AND i.longitude BETWEEN ? AND ?"""
     params = [*sv.ACTIVE_STATUSES, lat - dlat, lat + dlat, lng - dlng, lng + dlng]
     if category_id:
@@ -201,8 +201,8 @@ def public_map(db, days_resolved=30):
     Rejeitadas e duplicadas não aparecem no mapa público."""
     since = (datetime.now(timezone.utc) - timedelta(days=days_resolved)).strftime("%Y-%m-%d %H:%M:%S")
     rows = db.execute(
-        sv.INCIDENT_SELECT + f""" WHERE i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
-            OR (i.status = ? AND i.resolved_at >= ?) ORDER BY i.created_at DESC""",
+        sv.INCIDENT_SELECT + f""" WHERE i.deleted_at IS NULL AND (i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
+            OR (i.status = ? AND i.resolved_at >= ?)) ORDER BY i.created_at DESC""",
         (*sv.ACTIVE_STATUSES, sv.RESOLVIDA, since),
     ).fetchall()
     return [public_incident(r) for r in rows]
@@ -219,16 +219,16 @@ def short_name(name):
 
 def ranking_people(db, limit=10):
     rows = db.execute(
-        """SELECT u.id, u.name, f.short_name AS parish, COALESCE(SUM(p.points), 0) AS points
+        """SELECT u.id, u.name, u.avatar_updated_at, f.short_name AS parish, COALESCE(SUM(p.points), 0) AS points
              FROM users u
              LEFT JOIN points_log p ON p.user_id = u.id
              LEFT JOIN parishes f ON f.code = u.parish_code
             WHERE u.role = 'citizen'
-            GROUP BY u.id, u.name, f.short_name HAVING COALESCE(SUM(p.points), 0) > 0
+            GROUP BY u.id, u.name, u.avatar_updated_at, f.short_name HAVING COALESCE(SUM(p.points), 0) > 0
             ORDER BY points DESC, u.id LIMIT ?""",
         (limit,),
     ).fetchall()
-    return [{"id": r["id"], "name": short_name(r["name"]), "parish": r["parish"],
+    return [{"id": r["id"], "name": short_name(r["name"]), "parish": r["parish"], "avatar_updated_at": r["avatar_updated_at"],
              "points": r["points"], "level": level_for(r["points"])} for r in rows]
 
 

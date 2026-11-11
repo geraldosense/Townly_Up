@@ -5,7 +5,7 @@ window.Townly = (function () {
 
   async function api(url, options = {}) {
     const opts = { credentials: 'same-origin', headers: { 'Accept': 'application/json' }, ...options };
-    if (opts.body && typeof opts.body !== 'string') {
+    if (opts.body && typeof opts.body !== 'string' && !(opts.body instanceof FormData)) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(opts.body);
     }

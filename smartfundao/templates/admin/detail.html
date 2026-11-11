@@ -14,13 +14,19 @@
   </div>
 
   <div class="col-lg-5">
+    {% if incident.similar_to %}
+    <div class="small text-muted mb-2"><i class="bi bi-info-circle"></i> O sistema achou esta ocorrência parecida com outra e o munícipe confirmou que é um problema diferente.</div>
+    {% endif %}
     {% if duplicates %}
     <div class="tu-dup mb-3">
-      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Possíveis duplicados a menos de 50 m</div>
+      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Possíveis duplicados</div>
       {% for d in duplicates %}
-        <div class="small d-flex justify-content-between gap-2 py-1">
-          <a href="{{ url_for('admin_incident', incident_id=d.id) }}">{{ d.ticket }} · {{ d.category }}</a>
-          <span class="text-muted text-nowrap">{{ d.distance_m }} m · {{ d.status }}</span>
+        <div class="small py-1">
+          <div class="d-flex justify-content-between gap-2">
+            <a href="{{ url_for('admin_incident', incident_id=d.id) }}">{{ d.ticket }} · {{ d.category }}</a>
+            <span class="text-nowrap fw-semibold">{{ (d.score * 100)|round|int }}% parecida</span>
+          </div>
+          <div class="text-muted">{{ d.reasons|join(' · ') }} · {{ d.status }}</div>
         </div>
       {% endfor %}
       <div class="small text-muted mt-1">Se for o mesmo problema, marque esta como «Duplicada» e indique o ticket original.</div>

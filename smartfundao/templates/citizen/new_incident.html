@@ -87,8 +87,23 @@
         </div>
         {{ field_error(errors, 'location') }}
 
-        <!-- RF14: aviso de possível duplicado (preenchido pelo JavaScript) -->
-        <div id="duplicate" class="tu-dup mt-3" hidden></div>
+        <!-- RF14: deteção de repetidos. Preenchido pelo JavaScript antes de enviar;
+             sem JavaScript, o servidor mostra aqui as ocorrências parecidas. -->
+        <div id="duplicate" class="tu-dup mt-3" {{ '' if similar else 'hidden' }}>
+          {% if similar %}
+            <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Este problema parece já ter sido comunicado</div>
+            {% for d in similar %}
+              <label class="tu-dup-item" data-duplicate-id="{{ d.id }}">
+                <input class="form-check-input" type="checkbox" name="not_duplicate" value="{{ d.id }}">
+                <span><b>{{ d.ticket }}</b> · {{ d.category }} · {{ d.status }}<br>
+                  <span class="text-muted">{{ d.reasons|join(' · ') }} — {{ (d.score * 100)|round|int }}% parecida</span><br>
+                  É outro problema, diferente deste</span>
+              </label>
+            {% endfor %}
+            <p class="small text-muted mb-0 mt-2">Se for o mesmo, abra-o no <a href="{{ url_for('live_map') }}">mapa</a> e carregue em «Eu também vi».
+              Se for diferente, marque a caixa, volte a anexar as fotografias e envie.</p>
+          {% endif %}
+        </div>
 
         <div id="summary" class="small text-muted mt-3"></div>
         <button class="btn btn-primary btn-lg w-100 mt-3" type="submit" id="send">Enviar ocorrência</button>

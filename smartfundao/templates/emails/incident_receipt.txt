@@ -1,0 +1,22 @@
+Townly Up · Ocorrência registada
+
+Obrigado, {{ first_name }}. Recebemos o seu pedido.
+
+NÚMERO DE REFERÊNCIA: {{ incident.ticket }}
+Estado: {{ incident.status }}
+
+Tipo de problema:      {{ incident.category }}
+{% if incident.parish %}Freguesia:             {{ incident.parish }}
+{% endif %}Entidade responsável:  {{ incident.organization or 'Câmara Municipal' }}
+Data de registo:       {{ incident.created_at|local }}
+Local:                 {{ maps_url }}
+
+Acompanhar a ocorrência: {{ incident_url }}
+
+O que acontece a seguir
+1. A entidade analisa o pedido e pode definir uma prioridade.
+2. Cada mudança de estado fica registada e recebe um alerta na aplicação.
+3. Quando estiver resolvido, verá a nota e a fotografia da intervenção.
+
+Em caso de emergência ligue 112. Este serviço não é para situações urgentes.
+Projeto académico · não é um serviço oficial da Câmara Municipal do Fundão.

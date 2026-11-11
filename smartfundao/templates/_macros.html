@@ -39,3 +39,22 @@
     </div>
   {% endif %}
 {%- endmacro %}
+
+{# Botão de olho para mostrar/esconder a palavra-passe (o comportamento está em _auth_scripts.html) #}
+{% macro reveal(target) -%}
+  <button type="button" class="tu-reveal" data-reveal="{{ target }}" aria-label="Mostrar palavra-passe" title="Mostrar palavra-passe" aria-pressed="false">
+    <svg class="tu-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    <svg class="tu-eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7c1.9 0 3.5-.6 4.9-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+  </button>
+{%- endmacro %}
+
+{# Fotografia de perfil (ou as iniciais, se não houver). person: precisa de id, name e avatar_updated_at #}
+{% macro avatar(person, size=30, cls='') -%}
+  {% set initials = (person.name.split()[0][:1] ~ (person.name.split()[-1][:1] if person.name.split()|length > 1 else ''))|upper %}
+  {% if person.avatar_updated_at %}
+    <img class="tu-avatar tu-avatar-img {{ cls }}" src="{{ url_for('avatar', user_id=person.id, v=person.avatar_updated_at|replace(' ', 'T')) }}"
+         width="{{ size }}" height="{{ size }}" style="width: {{ size }}px; height: {{ size }}px" alt="Fotografia de {{ person.name }}" loading="lazy">
+  {% else %}
+    <span class="tu-avatar {{ cls }}" style="width: {{ size }}px; height: {{ size }}px; font-size: {{ (size * 0.38)|round|int }}px" aria-hidden="true">{{ initials }}</span>
+  {% endif %}
+{%- endmacro %}

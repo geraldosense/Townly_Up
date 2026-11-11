@@ -26,7 +26,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 
-flask --app app seed-demo      # cria a BD + contas e ocorrências fictícias
+flask --app app create-admin   # cria a conta da Câmara (pede nome, email e palavra-passe)
 flask --app app run --debug --port 8000   # abrir http://127.0.0.1:8000
 ```
 
@@ -35,22 +35,16 @@ Ou, mais simples: **duplo clique em `iniciar.command`** (instala na 1.ª vez e a
 ### PostgreSQL
 
 1. Instalar a [Postgres.app](https://postgresapp.com) (arrastar para Aplicações, abrir, carregar em **Initialize**).
-2. Duplo clique em `iniciar.command`: cria a base `townlyup`, aplica as migrações e os dados de demonstração.
+2. Duplo clique em `iniciar.command`: cria a base `townlyup`, aplica as migrações e os dados de referência (freguesias, entidades, categorias).
 
 Sem PostgreSQL a aplicação usa SQLite (`instance/townlyup.db`) — o código é o mesmo.
 Para escolher à mão: `export DATABASE_URL=postgresql://$USER@localhost:5432/townlyup`.
 
 > No macOS a porta 5000 está ocupada pelo AirPlay Receiver — por isso usamos a 8000.
 
-Contas de demonstração (palavra-passe `Fundao2026`):
-
-| Perfil | Email |
-|---|---|
-| Munícipe | `ana@demo.pt`, `carlos@demo.pt`, `beatriz@demo.pt`, `diogo@demo.pt`, `marta@demo.pt` |
-| Câmara Municipal (central, vê e reencaminha tudo) | `rui@demo.pt` |
-| Serviço técnico — Obras Municipais | `obras@demo.pt` |
-| Serviço técnico — Iluminação Pública | `iluminacao@demo.pt` |
-| Junta de Freguesia de Alpedrinha | `junta.alpedrinha@demo.pt` |
+**Sem dados fictícios**: a base começa vazia (só as 23 freguesias, as entidades e as categorias).
+Os munícipes registam-se no site; a 1.ª conta da Câmara cria-se com `create-admin` (ou, online, com
+`ADMIN_EMAIL`/`ADMIN_PASSWORD`) e é ela que cria, no site, as contas das Juntas e dos serviços.
 
 Outros comandos:
 
@@ -119,7 +113,7 @@ Registada → Em análise → Em tratamento → Resolvida
 ## Testes de aceitação
 
 `python -m pytest -v` cobre TA01–TA08, segurança, comunidade, entidades e restrições da base de dados
-(63 testes). Com `TEST_DATABASE_URL=postgresql://…` os mesmos testes correm em PostgreSQL.
+(100 testes). Com `TEST_DATABASE_URL=postgresql://…` os mesmos testes correm em PostgreSQL.
 TA08 (smartphone) deve também ser confirmado manualmente no telemóvel ou nas
 ferramentas de programador do navegador.
 
@@ -193,8 +187,7 @@ Usar só fotografias próprias ou com licença que o permita.
    *connection string* (`postgresql://…?sslmode=require`).
 2. **Código — GitHub**: enviar esta pasta para `github.com/geraldosense/Townly_Up` (ver comandos abaixo).
 3. **Servidor — [Render](https://render.com)**: *New → Blueprint* → escolher o repositório. O `render.yaml`
-   cria o serviço; colar o endereço do Neon em `DATABASE_URL`. O `start.sh` cria as tabelas, os dados de
-   demonstração (`SEED_DEMO=1`) e arranca o `gunicorn`.
+   cria o serviço; colar o endereço do Neon em `DATABASE_URL`. O `start.sh` cria as tabelas, a conta da Câmara e arranca o `gunicorn`.
 
 ```bash
 git init
@@ -205,7 +198,46 @@ git remote add origin https://github.com/geraldosense/Townly_Up.git
 git push -u origin main
 ```
 
+**Todo o conteúdo vem dos utilizadores** (não há dados fictícios). No Render,
+definir `ADMIN_EMAIL` e `ADMIN_PASSWORD` — o `start.sh` cria essa 1.ª conta da Câmara. Depois, no site,
+*menu → Contas das entidades* cria as contas dos técnicos das Juntas e dos serviços; os munícipes
+registam-se sozinhos. Cada pessoa muda a palavra-passe em *A minha conta*.
+
 Notas: no plano gratuito o site adormece após 15 min sem visitas (a 1.ª visita demora ~1 min).
 As fotografias ficam guardadas na base de dados (o disco do Render apaga-se ao reiniciar).
-As contas de demonstração têm palavra-passe pública — depois da defesa, pôr `SEED_DEMO=0` e
-mudar as palavras-passe ou apagar a base.
+
+## Sistema inteligente
+
+**Repetidos** (`similarity.py`): antes de enviar, a nova ocorrência é comparada com as ativas a menos de
+150 m, juntando distância, categoria, palavras da descrição (sem acentos nem palavras vazias) e a
+«impressão digital» das fotografias (dHash de 64 bits, guardado em `incident_images.phash`).
+Acima de 50 % de semelhança o munícipe vê as ocorrências parecidas e escolhe «Eu também vi» ou
+«É outro problema» (fica registado em `incidents.similar_to`). Os técnicos veem a % de semelhança no painel.
+
+**Moderação das fotografias** (`moderation.py`): cada fotografia é analisada pela Claude API (visão,
+modelo `claude-haiku-5-5`) e é recusada automaticamente se tiver conteúdo sexual, violência ou ódio,
+ou se não mostrar um problema no espaço público (selfie, meme, captura de ecrã...). Cada recusa fica em
+`moderation_events`; à 3.ª recusa por conteúdo impróprio em 30 dias a conta é suspensa.
+Configurar `ANTHROPIC_API_KEY` (consola da Anthropic → API keys). Sem a chave a moderação fica desligada.
+
+## Email com o número de referência
+
+Logo após comunicar, o munícipe recebe um email com o número (TU-AAAA-NNNN), o resumo, a entidade
+responsável, a ligação para acompanhar e os próximos passos (`mailer.py`, `templates/emails/`).
+O envio corre em segundo plano: a página não espera e, se falhar, a ocorrência fica registada na mesma.
+
+| Onde | Configuração |
+|---|---|
+| Online (Render) | `BREVO_API_KEY` + `MAIL_FROM` (remetente verificado na Brevo, gratuito até 300 emails/dia). O Render gratuito bloqueia SMTP, por isso usa-se a API HTTPS. |
+| No Mac (opcional) | `MAIL_SERVER=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME`, `MAIL_PASSWORD` (palavra-passe de aplicação do Gmail), `MAIL_FROM` |
+| Sem configuração | os emails ficam em `instance/outbox/` (abrir no navegador para ver) |
+
+## Conta, apagar e alertas
+
+- **Fotografia de perfil** (`/conta`): JPEG/PNG/WebP até 5 MB, cortada em quadrado 320×320, sem metadados,
+  guardada na base de dados (`users.avatar`). Aparece no menu, na conta e no ranking.
+- **Apagar**: o autor pode apagar a ocorrência enquanto está «Registada» ou «Em análise». Deixa de aparecer em
+  todo o lado, as fotografias são eliminadas e os pontos retirados; o registo e o histórico ficam
+  (`incidents.deleted_at`), como exige o caderno de encargos (RF10/RF11).
+- **Alertas da comunidade**: cada novo problema gera um alerta para todos os munícipes («na sua freguesia» para
+  quem lá vive ou a segue). Em «Alertas» cada pessoa pode escolher só as freguesias que acompanha (`users.alert_scope`).

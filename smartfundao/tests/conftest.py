@@ -40,3 +40,12 @@ def database_config(tmp_path):
     yield {"DATABASE_URL": url}
     admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
     admin.close()
+
+
+@pytest.fixture(autouse=True)
+def sent_emails(monkeypatch):
+    """Os testes nunca enviam emails a sério: ficam guardados nesta lista."""
+    import mailer
+    outbox = []
+    monkeypatch.setattr(mailer, "send_async", lambda *args: outbox.append(args))
+    return outbox

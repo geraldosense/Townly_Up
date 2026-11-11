@@ -11,6 +11,30 @@
       <h2 class="tu-section"><i class="bi bi-clock-history"></i> Linha temporal</h2>
       {{ timeline(history) }}
     </div></div>
+
+    {# Apagar: só o autor e só enquanto a entidade ainda não começou a tratar #}
+    <div class="tu-danger-zone mt-3">
+      {% if can_delete %}
+        <details>
+          <summary>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Apagar esta ocorrência
+          </summary>
+          <div class="tu-danger-body">
+            <p>Vai apagar <b>{{ incident.ticket }}</b>. Deixa de aparecer no mapa, na sua lista e para a entidade; as fotografias são eliminadas e os pontos desta ocorrência são retirados. <b>Não é possível desfazer.</b></p>
+            <form method="post" action="{{ url_for('delete_incident', incident_id=incident.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-danger btn-sm" type="submit">Sim, apagar definitivamente</button>
+                <button class="btn btn-link btn-sm" type="button" onclick="this.closest('details').open = false">Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </details>
+      {% else %}
+        <p class="tu-danger-note">{{ 'Esta ocorrência já está a ser tratada pela entidade, por isso não pode ser apagada.' if incident.status == 'Em tratamento' else 'Esta ocorrência está encerrada e fica no histórico do concelho.' }}</p>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

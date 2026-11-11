@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid %}
+{% block title %}Contas das entidades{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Câmara Municipal</div>
+    <h1>Contas das entidades</h1>
+  </div>
+</div>
+<p class="text-muted" style="max-width: 62ch">Os técnicos das Juntas de Freguesia e dos serviços municipais não se registam sozinhos:
+  é a Câmara que lhes cria a conta e a liga à entidade. Cada técnico vê e trata apenas as ocorrências da sua entidade.</p>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section">Nova conta</h2>
+      <form method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label" for="name">Nome</label>
+          <input class="form-control{{ invalid(errors, 'name') }}" id="name" name="name" value="{{ form.get('name', '') }}" maxlength="100" required>
+          {{ field_error(errors, 'name') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="email">Email profissional</label>
+          <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" maxlength="120" required>
+          {{ field_error(errors, 'email') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="organization_id">Entidade</label>
+          <select class="form-select{{ invalid(errors, 'organization_id') }}" id="organization_id" name="organization_id" required>
+            <option value="">Escolher…</option>
+            {% for kind, label in [('camara', 'Câmara Municipal'), ('servico', 'Serviços técnicos'), ('junta', 'Juntas de Freguesia')] %}
+              <optgroup label="{{ label }}">
+                {% for o in organizations if o.kind == kind %}
+                  <option value="{{ o.id }}" {{ 'selected' if form.get('organization_id') == o.id|string }}>{{ o.name }}</option>
+                {% endfor %}
+              </optgroup>
+            {% endfor %}
+          </select>
+          {{ field_error(errors, 'organization_id') }}
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="central" name="central" value="1" {{ 'checked' if form.get('central') }}>
+          <label class="form-check-label small" for="central">Gestor central (só para a Câmara: vê tudo, reencaminha e gere contas)</label>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="password">Palavra-passe temporária</label>
+          <input class="form-control{{ invalid(errors, 'password') }}" type="text" id="password" name="password" autocomplete="off" required>
+          {{ field_error(errors, 'password') }}
+          <div class="form-text">8+ caracteres, com letras e números. A pessoa muda-a depois em «A minha conta».</div>
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Criar conta</button>
+      </form>
+    </div></div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section">Contas existentes · {{ accounts|length }}</h2>
+      {% if accounts %}
+      <div class="table-responsive">
+        <table class="table align-middle tu-table mb-0">
+          <thead><tr><th>Nome</th><th>Entidade</th><th class="d-none d-md-table-cell">Último acesso</th><th>Estado</th></tr></thead>
+          <tbody>
+            {% for a in accounts %}
+              <tr class="{{ 'text-muted' if not a.active }}">
+                <td><div class="fw-semibold">{{ a.name }}</div><div class="small text-muted">{{ a.email }}</div></td>
+                <td class="small">{{ a.org_name }}{% if a.role == 'admin' %}<div class="text-muted">Gestor central</div>{% endif %}</td>
+                <td class="d-none d-md-table-cell small">{{ a.last_login_at|local('%d/%m/%Y %H:%M') if a.last_login_at else 'Nunca' }}</td>
+                <td>
+                  {% if a.id == g.user.id %}<span class="small text-muted">A sua conta</span>
+                  {% else %}
+                  <form method="post" action="{{ url_for('admin_account_toggle', user_id=a.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="active" value="{{ '0' if a.active else '1' }}">
+                    <button class="btn btn-sm {{ 'btn-outline-secondary' if a.active else 'btn-outline-primary' }}" type="submit">{{ 'Desativar' if a.active else 'Reativar' }}</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="text-muted mb-0">Ainda não há contas de entidades.</p>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,39 +1,33 @@
-{% extends "base.html" %}
+{% extends "_auth_layout.html" %}
+{% from "_macros.html" import reveal %}
 {% block title %}Entrar{% endblock %}
-{% block content %}
-<div class="tu-auth">
-  {% include "_auth_side.html" %}
-  <section class="tu-auth-form">
-    <p class="tu-auth-step">Acesso</p>
-    <h1 class="tu-auth-title">Entrar</h1>
-    <p class="tu-auth-lede">Munícipes, Juntas de Freguesia e serviços técnicos entram aqui com a mesma conta.</p>
+{% block auth_form %}
+    <p class="tu-auth-greeting" data-greeting="bem-vindo de volta">Bem-vindo de volta</p>
+    <h1 class="tu-auth-title">Entrar no Townly Up</h1>
+    <p class="tu-auth-lede">Acompanhe as suas ocorrências e os alertas das freguesias que segue.</p>
 
     {% if error %}<div class="tu-auth-error" role="alert">{{ error }}</div>{% endif %}
-    <form method="post" novalidate>
+    <form method="post" novalidate class="tu-auth-form-fields">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="tu-field">
+      <div class="tu-float">
+        <input class="form-control" type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder=" " autocomplete="username" required autofocus>
         <label for="email">Email</label>
-        <input class="form-control" type="email" id="email" name="email" value="{{ form.get('email', '') }}" autocomplete="username" required autofocus>
       </div>
-      <div class="tu-field">
+      <div class="tu-float tu-field-reveal">
+        <input class="form-control" type="password" id="password" name="password" placeholder=" " autocomplete="current-password" required>
         <label for="password">Palavra-passe</label>
-        <div class="tu-field-reveal">
-          <input class="form-control" type="password" id="password" name="password" autocomplete="current-password" required>
-          <button type="button" class="tu-reveal" data-reveal="password" aria-pressed="false">Mostrar</button>
-        </div>
+        {{ reveal('password') }}
       </div>
-      <button class="btn btn-primary tu-auth-submit" type="submit">Entrar</button>
+      <button class="btn btn-primary tu-auth-submit" type="submit">
+        <span>Entrar</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
     </form>
 
-    <div class="tu-auth-alt">
-      <div>
-        <strong>Primeira vez?</strong>
-        <span>Crie uma conta de munícipe para comunicar e seguir a sua freguesia.</span>
-      </div>
-      <a class="btn btn-outline-primary" href="{{ url_for('register') }}">Criar conta</a>
-    </div>
-    <p class="tu-auth-note">As contas das Juntas e dos serviços técnicos são criadas pela Câmara Municipal.</p>
-  </section>
-</div>
+    <div class="tu-auth-or"><span>ou</span></div>
+    <a class="tu-guest-btn" href="{{ url_for('live_map') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
+      <span>Entrar como convidado</span>
+      <small>ver o mapa sem conta</small>
+    </a>
 {% endblock %}
-{% block scripts %}{% include "_auth_scripts.html" %}{% endblock %}

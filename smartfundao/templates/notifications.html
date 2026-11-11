@@ -16,7 +16,7 @@
 
 <div class="row g-5">
   <div class="col-lg-7">
-    {% set labels = {'status': 'Evolução', 'zone': 'Na sua freguesia', 'assigned': 'Para a sua entidade'} %}
+    {% set labels = {'status': 'Evolução', 'zone': 'Novo problema', 'assigned': 'Para a sua entidade'} %}
     {% for n in items %}
       <a class="tu-item" href="{{ url_for('incident_detail', incident_id=n.incident_id) }}">
         <div class="flex-grow-1 min-w-0">
@@ -31,8 +31,23 @@
   </div>
 
   <aside class="col-lg-5">
+    {% if g.user.role == 'citizen' %}
+    <h2 class="h4">Alertas de novos problemas</h2>
+    <form method="post" action="{{ url_for('notifications_scope') }}" class="tu-scope mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="tu-scope-option">
+        <input type="radio" name="scope" value="all" {{ 'checked' if scope == 'all' }} onchange="this.form.submit()">
+        <span><b>Todo o concelho</b><small>Um alerta por cada problema comunicado em qualquer freguesia.</small></span>
+      </label>
+      <label class="tu-scope-option">
+        <input type="radio" name="scope" value="followed" {{ 'checked' if scope == 'followed' }} onchange="this.form.submit()">
+        <span><b>Só as freguesias que acompanho</b><small>A sua freguesia e as que marcar abaixo.</small></span>
+      </label>
+      <noscript><button class="btn btn-outline-primary btn-sm mt-2" type="submit">Guardar</button></noscript>
+    </form>
+    {% endif %}
     <h2 class="h4">Freguesias que acompanha</h2>
-    <p class="text-muted small">Recebe um alerta sempre que alguém comunica um problema numa destas freguesias.</p>
+    <p class="text-muted small">Os alertas destas freguesias aparecem como «na sua freguesia».</p>
     <form method="post" action="{{ url_for('follow_parishes') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="tu-follow-grid mb-3">

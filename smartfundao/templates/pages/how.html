@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Como funciona{% endblock %}
+{% block content %}
+<article class="tu-prose">
+  <div class="tu-eyebrow">Guia</div>
+  <h1>Como funciona o Townly Up</h1>
+  <p class="tu-prose-lede">Do buraco na estrada ao candeeiro apagado: qualquer pessoa do concelho pode comunicar um problema no espaço público e acompanhar o que acontece a seguir.</p>
+
+  <ol class="tu-steps-list">
+    <li><h2>Comunique</h2><p>Escolha o tipo de problema, tire uma fotografia e marque o local no mapa. Recebe um número de referência, por exemplo <span class="tu-item-code">TU-2026-0042</span>.</p></li>
+    <li><h2>Chega à entidade certa</h2><p>O pedido é encaminhado automaticamente: para o serviço técnico da categoria (obras, iluminação, limpeza…) ou para a Junta da freguesia onde fica o problema. A Câmara acompanha tudo.</p></li>
+    <li><h2>Acompanhe</h2><p>Cada mudança — em análise, em tratamento, resolvida — fica registada com data e observação, e recebe um alerta. Quando é resolvido, pode ver a fotografia da intervenção.</p></li>
+  </ol>
+
+  <h2>Evitar repetições</h2>
+  <p>Antes de enviar, o sistema compara o seu pedido com os que já existem por perto (local, tipo de problema, descrição e fotografia). Se alguém já comunicou o mesmo, basta carregar em «Eu também vi» — o pedido ganha força sem criar trabalho em duplicado.</p>
+
+  <h2>Participação</h2>
+  <p>Quem participa ganha pontos e sobe de nível. Os pontos não têm valor monetário: servem para reconhecer quem ajuda a cuidar do concelho.</p>
+  <table class="table tu-table small" style="max-width: 460px">
+    <tbody>
+      <tr><td>Comunicar uma ocorrência</td><td class="text-end fw-semibold">+{{ points.report }}</td></tr>
+      <tr><td>«Eu também vi»</td><td class="text-end fw-semibold">+{{ points.confirm_seen }}</td></tr>
+      <tr><td>Indicar que já foi resolvido</td><td class="text-end fw-semibold">+{{ points.confirm_fixed }}</td></tr>
+      <tr><td>A sua ocorrência foi resolvida</td><td class="text-end fw-semibold">+{{ points.resolved }}</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="quem">Quem recebe os pedidos</h2>
+  <p><b>Munícipes</b> comunicam e acompanham. <b>Juntas de Freguesia</b> e <b>serviços técnicos</b> tratam os pedidos da sua área. A <b>Câmara Municipal</b> vê tudo e reencaminha quando é preciso.</p>
+
+  <div class="tu-callout">
+    <b>Emergências:</b> este serviço não é para situações urgentes. Em caso de perigo para pessoas ou bens, ligue <b>112</b>.
+  </div>
+  <div class="d-flex flex-wrap gap-3 mt-4">
+    <a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+    <a class="tu-link-arrow align-self-center" href="{{ url_for('rules') }}">Regras da comunidade →</a>
+  </div>
+</article>
+{% endblock %}

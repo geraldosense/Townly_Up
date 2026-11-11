@@ -46,6 +46,10 @@ if ! python -m pip install --disable-pip-version-check -q -r requirements.txt; t
 fi
 python -c "import flask, PIL, psycopg; print('Flask', flask.__version__, '· Pillow', PIL.__version__, '· psycopg', psycopg.__version__)" || pausa
 
+# Chaves privadas (ex.: ANTHROPIC_API_KEY=...) num ficheiro .env nesta pasta — nunca vai para o GitHub.
+if [ -f .env ]; then set -a; source ./.env; set +a; echo "Chaves lidas de .env"; fi
+[ -n "$ANTHROPIC_API_KEY" ] && echo "Moderação das fotografias: LIGADA" || echo "Moderação das fotografias: desligada (sem ANTHROPIC_API_KEY)"
+
 # 4) PostgreSQL (Postgres.app ou Homebrew). Sem PostgreSQL, usa SQLite (instance/townlyup.db).
 for d in /Applications/Postgres.app/Contents/Versions/latest/bin /opt/homebrew/bin /usr/local/bin; do
   [ -x "$d/psql" ] && export PATH="$d:$PATH" && break
@@ -70,9 +74,9 @@ if [ -z "$DATABASE_URL" ] && [ -f instance/townlyup.db ] && \
   echo "   A base SQLite antiga foi guardada como instance/townlyup-antigo-*.db"
 fi
 
-# 5) Tabelas e dados de demonstração
-echo "-> A preparar a base de dados (dados de demonstração na 1.ª vez)..."
-flask --app app seed-demo >/dev/null 2>&1 && echo "   Dados de demonstração criados." || echo "   Base de dados já existente — mantida."
+# 5) Tabelas e dados de referência (freguesias, entidades, categorias)
+echo "-> A preparar a base de dados ..."
+flask --app app init-db >/dev/null 2>&1 && echo "   Base de dados pronta (sem dados fictícios)." || echo "   ERRO ao preparar a base de dados."
 
 # 6) Limites das freguesias (opcional)
 if [ ! -f static/data/freguesias_fundao.geojson ]; then
@@ -89,12 +93,11 @@ done
 
 echo ""
 echo "=============================================================="
-echo " Servidor em:  http://127.0.0.1:$PORT"
-echo " Contas: ana@demo.pt (munícipe) · rui@demo.pt (Câmara)"
-echo "         obras@demo.pt (serviço) · junta.alpedrinha@demo.pt (Junta)"
-echo "         palavra-passe: Fundao2026"
+echo " Servidor em:  http://localhost:$PORT"
+echo " Conta da Câmara: no Cursor, flask --app app create-admin"
+echo " Munícipes: «Criar conta» no site."
 echo " Deixe esta janela aberta. Para parar: Ctrl + C"
 echo "=============================================================="
 echo ""
-(sleep 3; open "http://127.0.0.1:$PORT") &
+(sleep 3; open "http://localhost:$PORT") &
 flask --app app run --debug --port "$PORT" || pausa

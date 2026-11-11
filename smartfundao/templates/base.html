@@ -1,3 +1,4 @@
+{% from "_macros.html" import avatar %}
 <!doctype html>
 <html lang="pt-PT">
 <head>
@@ -23,6 +24,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
 </head>
 <body class="d-flex flex-column min-vh-100 {% block body_class %}{% endblock %}">
+  {% block header %}
   <div class="tu-topbar">
     <div class="container d-flex justify-content-between gap-3 py-1">
       <span>Projeto académico · Concelho do Fundão, Castelo Branco</span>
@@ -41,7 +43,6 @@
         <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
           {% set ep = request.endpoint or '' %}
           <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'live_map' }}" href="{{ url_for('live_map') }}">Mapa</a></li>
-          <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'ranking' }}" href="{{ url_for('ranking') }}">Ranking</a></li>
           {% if g.user and g.user.role == 'citizen' %}
             <li class="nav-item"><a class="nav-link {{ 'active' if ep in ['citizen_dashboard', 'incident_detail'] }}" href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a></li>
             {% if my_level %}<li class="nav-item"><a class="tu-points-chip" href="{{ url_for('ranking') }}" title="{{ my_level.name }}"><i class="bi bi-{{ my_level.icon }}"></i> <span id="my-points">{{ my_level.points }}</span> pts</a></li>{% endif %}
@@ -50,16 +51,25 @@
             <li class="nav-item"><a class="nav-link {{ 'active' if ep.startswith('admin') }}" href="{{ url_for('admin_dashboard') }}">{{ 'Painel municipal' if g.user.role == 'admin' else 'Painel da entidade' }}</a></li>
           {% endif %}
           {% if g.user %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'notifications_page' }}" href="{{ url_for('notifications_page') }}">Alertas{% if unread_count %}<span class="tu-dot-badge">{{ unread_count }}</span>{% endif %}</a></li>
+            <li class="nav-item">
+              <a class="nav-link tu-bell {{ 'active' if ep == 'notifications_page' }}{{ ' has-unread' if unread_count }}" href="{{ url_for('notifications_page') }}"
+                 aria-label="Alertas{{ ' — ' ~ unread_count ~ ' por ler' if unread_count }}" title="Alertas">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg>
+                {% if unread_count %}<span class="tu-bell-count">{{ unread_count if unread_count < 100 else '99+' }}</span>{% endif %}
+                <span class="tu-bell-label">Alertas</span>
+              </a>
+            </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="tu-avatar">{{ g.user.name[:1]|upper }}</span><span>{{ g.user.name.split()[0] }}</span>
+                {{ avatar(g.user, 30) }}<span>{{ g.user.name.split()[0] }}</span>
               </a>
               <div class="dropdown-menu dropdown-menu-end shadow-sm">
                 <span class="dropdown-item-text small"><b>{{ g.user.name }}</b><br><span class="text-muted">{{ g.user.email }}</span><br>
                   <span class="badge {{ 'text-bg-success' if g.user.role == 'citizen' else 'text-bg-primary' }} mt-1">{{ ROLE_LABELS[g.user.role] }}</span>
                   {% if g.user.org_name %}<br><span class="text-muted">{{ g.user.org_name }}</span>{% endif %}</span>
                 <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="{{ url_for('account') }}"><i class="bi bi-person-gear"></i> A minha conta</a>
+                {% if g.user.role == 'admin' %}<a class="dropdown-item" href="{{ url_for('admin_accounts') }}"><i class="bi bi-people"></i> Contas das entidades</a>{% endif %}
                 <form method="post" action="{{ url_for('logout') }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="dropdown-item" type="submit"><i class="bi bi-box-arrow-right"></i> Terminar sessão</button>
@@ -74,22 +84,17 @@
       </div>
     </div>
   </nav>
+  {% endblock %}
 
   <main class="flex-grow-1 {% block main_class %}py-4 py-md-5{% endblock %}">
     {% block hero %}{% endblock %}
     <div class="container">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show tu-alert" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-          </div>
-        {% endfor %}
-      {% endwith %}
+      {% block flashes %}{% include "_flashes.html" %}{% endblock %}
       {% block content %}{% endblock %}
     </div>
   </main>
 
+{% block footer %}
   <footer class="tu-footer mt-auto">
     <div class="container py-5">
       <div class="row g-4">
@@ -115,10 +120,11 @@
         </div>
       </div>
       <div class="tu-footer-rule mt-4 pt-3 small">
-        Prova de Aptidão Profissional · Técnico de Desenvolvimento de Software · Demonstração com dados fictícios — não é um serviço oficial da Câmara Municipal do Fundão.
+        Prova de Aptidão Profissional · Técnico de Desenvolvimento de Software · Projeto académico — não é um serviço oficial da Câmara Municipal do Fundão.
       </div>
     </div>
   </footer>
+  {% endblock %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

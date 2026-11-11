@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid, avatar, reveal %}
+{% block title %}A minha conta{% endblock %}
+{% block content %}
+<div class="tu-page-head"><div><div class="tu-eyebrow">Perfil</div><h1>A minha conta</h1></div></div>
+
+<div class="tu-profile">
+  {# ---------------------------------------------------------------- Cartão de perfil + fotografia #}
+  <section class="tu-profile-card">
+    <form method="post" action="{{ url_for('account_avatar') }}" enctype="multipart/form-data" id="avatar-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="tu-avatar-edit">
+        <div class="tu-avatar-frame" id="avatar-frame">{{ avatar(g.user, 120, 'tu-avatar-xl') }}</div>
+        <label class="tu-avatar-camera" for="avatar-input" title="Escolher fotografia">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span class="visually-hidden">Escolher fotografia</span>
+        </label>
+        <input type="file" id="avatar-input" name="avatar" accept="image/jpeg,image/png,image/webp" class="visually-hidden">
+      </div>
+
+      <h2 class="tu-profile-name">{{ g.user.name }}</h2>
+      <p class="tu-profile-role">{{ ROLE_LABELS[g.user.role] }}{% if g.user.org_name %} · {{ g.user.org_name }}{% endif %}</p>
+
+      <div class="tu-avatar-actions" id="avatar-actions">
+        <label class="btn btn-outline-primary btn-sm" for="avatar-input">{{ 'Alterar fotografia' if g.user.avatar_updated_at else 'Adicionar fotografia' }}</label>
+        {% if g.user.avatar_updated_at %}
+          <button class="btn btn-link btn-sm tu-avatar-remove" type="submit" name="action" value="remover">Remover</button>
+        {% endif %}
+      </div>
+      <div class="tu-avatar-actions" id="avatar-confirm" hidden>
+        <button class="btn btn-primary btn-sm" type="submit" name="action" value="guardar">Guardar fotografia</button>
+        <button class="btn btn-link btn-sm" type="button" id="avatar-cancel">Cancelar</button>
+      </div>
+      <p class="tu-avatar-help" id="avatar-help">JPEG, PNG ou WebP até 5 MB. A imagem é cortada em quadrado e os dados de localização são removidos.</p>
+    </form>
+
+    <dl class="tu-profile-meta">
+      <div><dt>Email</dt><dd>{{ g.user.email }}</dd></div>
+      {% if g.user.created_at %}<div><dt>Membro desde</dt><dd>{{ g.user.created_at|local('%d/%m/%Y') }}</dd></div>{% endif %}
+    </dl>
+  </section>
+
+  {# ---------------------------------------------------------------- Palavra-passe #}
+  <section class="tu-card tu-profile-section"><div class="card-body">
+    <h2 class="tu-section">{{ 'Mudar a palavra-passe' if has_password else 'Criar uma palavra-passe' }}</h2>
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if has_password %}
+      <div class="mb-3">
+        <label class="form-label" for="current">Palavra-passe atual</label>
+        <div class="tu-field-reveal">
+          <input class="form-control{{ invalid(errors, 'current') }}" type="password" id="current" name="current" autocomplete="current-password" required>
+          {{ reveal('current') }}
+        </div>
+        {{ field_error(errors, 'current') }}
+      </div>
+      {% endif %}
+      <div class="row g-3 mb-1">
+        <div class="col-sm-6">
+          <label class="form-label" for="password">Nova</label>
+          <div class="tu-field-reveal">
+            <input class="form-control{{ invalid(errors, 'password') }}" type="password" id="password" name="password" autocomplete="new-password" required>
+            {{ reveal('password') }}
+          </div>
+          {{ field_error(errors, 'password') }}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="confirm">Confirmar</label>
+          <div class="tu-field-reveal">
+            <input class="form-control{{ invalid(errors, 'confirm') }}" type="password" id="confirm" name="confirm" autocomplete="new-password" required>
+            {{ reveal('confirm') }}
+          </div>
+          {{ field_error(errors, 'confirm') }}
+        </div>
+      </div>
+      <div class="form-text mb-3">Mínimo 8 caracteres, com letras e números.</div>
+      <button class="btn btn-primary" type="submit">Guardar palavra-passe</button>
+    </form>
+  </div></section>
+</div>
+{% endblock %}
+{% block scripts %}
+{% include "_auth_scripts.html" %}
+<script>
+  // Pré-visualização da nova fotografia antes de a guardar.
+  (function () {
+    const input = document.getElementById('avatar-input');
+    const frame = document.getElementById('avatar-frame');
+    const actions = document.getElementById('avatar-actions');
+    const confirm = document.getElementById('avatar-confirm');
+    const help = document.getElementById('avatar-help');
+    const original = frame.innerHTML;
+    const helpText = help.textContent;
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+        help.textContent = 'Escolha uma imagem JPEG, PNG ou WebP até 5 MB.';
+        help.classList.add('is-error'); input.value = ''; return;
+      }
+      const img = document.createElement('img');
+      img.className = 'tu-avatar tu-avatar-img tu-avatar-xl is-preview';
+      img.alt = 'Pré-visualização';
+      img.src = URL.createObjectURL(file);
+      frame.replaceChildren(img);
+      actions.hidden = true; confirm.hidden = false;
+      help.textContent = 'Pré-visualização — carregue em «Guardar fotografia» para confirmar.';
+      help.classList.remove('is-error');
+    });
+    document.getElementById('avatar-cancel').addEventListener('click', () => {
+      input.value = ''; frame.innerHTML = original;
+      actions.hidden = false; confirm.hidden = true;
+      help.textContent = helpText;
+    });
+  })();
+</script>
+{% endblock %}

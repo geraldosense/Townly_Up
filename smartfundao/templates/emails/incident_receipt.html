@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Ocorrência registada · {{ incident.ticket }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f6f3ec;font-family:Helvetica,Arial,sans-serif;color:#1d2433;">
+  <div style="display:none;max-height:0;overflow:hidden;">O seu número de referência é {{ incident.ticket }}. Guarde-o para acompanhar o pedido.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3ec;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fffdf8;border:1px solid #e2dacb;border-radius:6px;overflow:hidden;">
+
+        <!-- Cabeçalho -->
+        <tr><td style="background:#0b2a5b;padding:22px 32px;border-bottom:3px solid #e7c78c;">
+          <span style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-.2px;">Townly <span style="color:#7fd09a;">Up</span></span>
+          <span style="float:right;font-size:12px;color:#c9d3e6;line-height:28px;">Concelho do Fundão</span>
+        </td></tr>
+
+        <!-- Mensagem -->
+        <tr><td style="padding:32px 32px 8px;">
+          <p style="margin:0 0 6px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:#a8834a;font-weight:700;">Ocorrência registada</p>
+          <h1 style="margin:0 0 14px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.25;color:#1d2433;font-weight:600;">Obrigado, {{ first_name }}. Recebemos o seu pedido.</h1>
+          <p style="margin:0;font-size:15px;line-height:1.6;color:#4a463f;">O pedido já foi encaminhado para <b style="color:#1d2433;">{{ incident.organization or 'a Câmara Municipal' }}</b>. Guarde o número de referência abaixo para o acompanhar.</p>
+        </td></tr>
+
+        <!-- Número de referência -->
+        <tr><td style="padding:22px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px dashed #a8834a;border-radius:6px;background:#ffffff;">
+            <tr><td align="center" style="padding:20px;">
+              <p style="margin:0 0 6px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#625c51;">Número de referência</p>
+              <p style="margin:0;font-family:'Courier New',monospace;font-size:30px;font-weight:700;letter-spacing:2px;color:#0b2a5b;">{{ incident.ticket }}</p>
+              <p style="margin:10px 0 0;"><span style="display:inline-block;padding:3px 10px;border-radius:4px;background:#e9edf4;color:#0b2a5b;font-size:12px;font-weight:700;">{{ incident.status }}</span></p>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Resumo -->
+        <tr><td style="padding:0 32px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.5;">
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2dacb;color:#625c51;width:42%;">Tipo de problema</td><td style="padding:9px 0;border-bottom:1px solid #e2dacb;font-weight:600;">{{ incident.category }}</td></tr>
+            {% if incident.parish %}<tr><td style="padding:9px 0;border-bottom:1px solid #e2dacb;color:#625c51;">Freguesia</td><td style="padding:9px 0;border-bottom:1px solid #e2dacb;font-weight:600;">{{ incident.parish }}</td></tr>{% endif %}
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2dacb;color:#625c51;">Local</td><td style="padding:9px 0;border-bottom:1px solid #e2dacb;"><a href="{{ maps_url }}" style="color:#0b2a5b;font-weight:600;">Ver no mapa</a></td></tr>
+            <tr><td style="padding:9px 0;border-bottom:1px solid #e2dacb;color:#625c51;">Entidade responsável</td><td style="padding:9px 0;border-bottom:1px solid #e2dacb;font-weight:600;">{{ incident.organization or 'Câmara Municipal' }}</td></tr>
+            <tr><td style="padding:9px 0;color:#625c51;">Data de registo</td><td style="padding:9px 0;font-weight:600;">{{ incident.created_at|local }}</td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Botão -->
+        <tr><td align="center" style="padding:26px 32px 8px;">
+          <a href="{{ incident_url }}" style="display:inline-block;background:#0b2a5b;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:6px;">Acompanhar a ocorrência →</a>
+        </td></tr>
+
+        <!-- Próximos passos -->
+        <tr><td style="padding:24px 32px 30px;">
+          <p style="margin:0 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:17px;font-weight:600;">O que acontece a seguir</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.5;color:#4a463f;">
+            <tr><td valign="top" style="width:30px;padding:0 0 10px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:4px;background:#0b2a5b;color:#fff;font-size:12px;font-weight:700;">1</span></td>
+                <td style="padding:0 0 10px;">A entidade analisa o pedido e pode definir uma prioridade.</td></tr>
+            <tr><td valign="top" style="width:30px;padding:0 0 10px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:4px;background:#0b2a5b;color:#fff;font-size:12px;font-weight:700;">2</span></td>
+                <td style="padding:0 0 10px;">Cada mudança de estado fica registada e recebe um alerta na aplicação.</td></tr>
+            <tr><td valign="top" style="width:30px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:4px;background:#0b2a5b;color:#fff;font-size:12px;font-weight:700;">3</span></td>
+                <td>Quando estiver resolvido, verá a nota e a fotografia da intervenção.</td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Rodapé -->
+        <tr><td style="padding:18px 32px;background:#f1ece2;border-top:1px solid #e2dacb;font-size:12px;line-height:1.6;color:#625c51;">
+          Em caso de emergência ligue <b>112</b> — este serviço não é para situações urgentes.<br>
+          Recebeu este email porque comunicou uma ocorrência no Townly Up com este endereço. Não responda a esta mensagem.<br>
+          Projeto académico · não é um serviço oficial da Câmara Municipal do Fundão.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

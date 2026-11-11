@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Privacidade e dados{% endblock %}
+{% block content %}
+<article class="tu-prose">
+  <div class="tu-eyebrow">Informação</div>
+  <h1>Privacidade e dados</h1>
+  <p class="tu-prose-lede">Explicamos de forma simples que dados o Townly Up guarda, quem os vê e para quê.</p>
+
+  <h2>Que dados guardamos</h2>
+  <ul>
+    <li><b>Conta:</b> nome, email, freguesia (se a indicar) e as freguesias que segue. A palavra-passe é guardada cifrada (nunca em texto).</li>
+    <li><b>Ocorrências:</b> tipo de problema, descrição, local, fotografias e o histórico de estados.</li>
+  </ul>
+
+  <h2>Quem vê o quê</h2>
+  <ul>
+    <li><b>Público (mapa):</b> só o tipo de problema, o estado, a freguesia e o local aproximado. Sem nomes, descrições nem fotografias.</li>
+    <li><b>Fotografias e descrição:</b> só o autor e a entidade que trata o pedido (Junta, serviço técnico ou Câmara).</li>
+    <li><b>Ranking:</b> mostra o nome e os pontos de quem participa.</li>
+  </ul>
+
+  <h2>Fotografias</h2>
+  <p>Ao enviar uma fotografia, removemos automaticamente os metadados (incluindo as coordenadas GPS e o modelo do telemóvel). Quando a verificação automática está ativa, as fotografias são analisadas por um serviço de inteligência artificial apenas para recusar conteúdo impróprio ou sem relação com o espaço público.</p>
+
+  <h2>Para que usamos os dados</h2>
+  <p>Apenas para encaminhar e acompanhar os pedidos, enviar os alertas que escolheu e manter o serviço seguro. Não vendemos dados nem mostramos publicidade.</p>
+
+  <h2>Os seus direitos</h2>
+  <p>Pode consultar e corrigir os seus dados, mudar a palavra-passe em «A minha conta» e pedir a eliminação da conta{% if contact_email %} escrevendo para <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% else %} à equipa do projeto{% endif %}.</p>
+
+  <p class="small text-muted mt-4">Projeto académico (Prova de Aptidão Profissional). Não é um serviço oficial da Câmara Municipal do Fundão.</p>
+</article>
+{% endblock %}

@@ -7,7 +7,7 @@ services:
     plan: free
     region: frankfurt
     buildCommand: pip install -r requirements.txt
-    # 1) cria/atualiza as tabelas  2) dados de demonstração (só se SEED_DEMO=1)  3) arranca o servidor
+    # 1) tabelas  2) conta da Câmara  3) servidor (sem dados fictícios)
     startCommand: ./start.sh
     healthCheckPath: /
     envVars:
@@ -19,7 +19,21 @@ services:
         value: "1"
       - key: TRUST_PROXY
         value: "1"
-      - key: SEED_DEMO
-        value: "1"
+      - key: ADMIN_NAME
+        value: Câmara Municipal do Fundão
+      - key: ADMIN_EMAIL        # a 1.ª conta da Câmara (cria as contas das Juntas e serviços no site)
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: BREVO_API_KEY       # email com o número de referência (Brevo, gratuito até 300/dia)
+        sync: false
+      - key: MAIL_FROM           # remetente verificado na Brevo
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Townly Up
+      - key: PUBLIC_URL          # ex.: https://townly-up.onrender.com (para as ligações nos emails)
+        sync: false
+      - key: ANTHROPIC_API_KEY   # moderação automática das fotografias (Claude API)
         sync: false

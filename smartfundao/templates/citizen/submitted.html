@@ -13,7 +13,9 @@
           <div class="tu-ticket-code">{{ incident.ticket }}</div>
           <span class="tu-badge st-registada">Registada</span>
         </div>
-        <p class="text-muted small">A sua ocorrência será analisada pelos serviços municipais. Guarde este número para acompanhar o pedido.</p>
+        <p class="tu-mail-sent"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          Enviámos este número para <b>{{ masked_email }}</b>.</p>
+        <p class="text-muted small">A sua ocorrência será analisada pela entidade responsável. Guarde este número para acompanhar o pedido.</p>
         <div class="d-grid gap-2">
           <a class="btn btn-primary" href="{{ url_for('incident_detail', incident_id=incident.id) }}">Ver detalhe do ticket</a>
           <a class="btn btn-link text-decoration-none" href="{{ url_for('citizen_dashboard') }}">Ver as minhas ocorrências</a>

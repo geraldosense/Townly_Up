@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Freguesias{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Concelho do Fundão</div>
+    <h1>As 23 freguesias</h1>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('live_map') }}">Ver no mapa</a>
+</div>
+<p class="text-muted" style="max-width: 62ch">Cada freguesia tem a sua Junta. Siga as freguesias onde vive ou trabalha para receber um alerta sempre que alguém comunicar um problema lá.</p>
+
+<div class="tu-parish-grid">
+  {% for p in parishes %}
+    <a class="tu-parish-card" href="{{ url_for('parish_page', code=p.code) }}">
+      <div class="tu-parish-card-name">{{ p.short_name }}{% if p.code in followed %} <span class="tu-follow-tag">A seguir</span>{% endif %}</div>
+      {% if p.short_name != p.name %}<div class="tu-parish-card-full">União de freguesias</div>{% endif %}
+      <dl class="tu-parish-card-figures">
+        <div><dt>{{ p.active }}</dt><dd>em curso</dd></div>
+        <div><dt>{{ p.resolved }}</dt><dd>{{ 'resolvida' if p.resolved == 1 else 'resolvidas' }}</dd></div>
+      </dl>
+    </a>
+  {% endfor %}
+</div>
+<p class="small text-muted mt-3">Limites e nomes oficiais: Carta Administrativa Oficial de Portugal (CAOP), Direção-Geral do Território.</p>
+{% endblock %}

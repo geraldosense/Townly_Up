@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import avatar %}
 {% block title %}Ranking{% endblock %}
 {% block content %}
 <div class="tu-page-head">
@@ -18,7 +19,7 @@
       {% for p in people %}
         <div class="tu-rank-row">
           <span class="tu-rank-pos {{ 'top-' ~ loop.index if loop.index <= 3 }}">{{ loop.index }}</span>
-          <span class="tu-avatar">{{ p.name[:1] }}</span>
+          {{ avatar(p, 36) }}
           <div class="flex-grow-1 min-w-0">
             <div class="fw-semibold">{{ p.name }}{% if g.user and g.user.id == p.id %} <span class="badge text-bg-success">Você</span>{% endif %}</div>
             <div class="small text-muted text-truncate"><i class="bi bi-{{ p.level.icon }}"></i> {{ p.level.name }}{% if p.parish %} · {{ p.parish }}{% endif %}</div>

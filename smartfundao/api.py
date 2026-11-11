@@ -62,6 +62,29 @@ def nearby():
                     "incidents": cm.nearby(get_db(), lat, lng, category_id=category_id)})
 
 
+@bp.post("/incidents/similar")
+def similar():
+    """Antes de enviar: procura ocorrências parecidas (local, categoria, texto e fotografias).
+    Recebe o mesmo formulário (multipart) do «Comunicar ocorrência»; não grava nada."""
+    import similarity
+    require_citizen()
+    lat = sv.parse_coordinate(request.form.get("latitude"))
+    lng = sv.parse_coordinate(request.form.get("longitude"))
+    category_id = request.form.get("category_id", type=int)
+    if lat is None or lng is None or category_id is None:
+        return jsonify({"incidents": []})
+    images = []
+    for f in [f for f in request.files.getlist("photos") if f and f.filename][: sv.MAX_IMAGES]:
+        try:
+            images.append(sv.process_image(f, current_app.config["MAX_IMAGE_BYTES"]))
+        except ValueError:
+            pass  # a validação a sério é feita no envio
+    text = f"{request.form.get('title', '')} {request.form.get('description', '')}"
+    found = similarity.find_similar(get_db(), lat, lng, category_id, text, similarity.hashes_for(images))
+    keys = ("id", "ticket", "category", "status", "distance_m", "seen", "score", "reasons", "strong")
+    return jsonify({"incidents": [{k: f[k] for k in keys} for f in found]})
+
+
 @bp.post("/incidents/<int:incident_id>/confirm")
 def confirm(incident_id):
     require_citizen()

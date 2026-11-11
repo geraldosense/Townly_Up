@@ -73,64 +73,111 @@
       `Resumo: ${label} · ${photos.files.length} fotografia(s) · «${document.getElementById('description').value.trim().slice(0, 60)}»`;
   }
 
-  // ------------------------------------------------------------ duplicados (RF14)
+  // ------------------------------------------------------------ repetidos (RF14, deteção inteligente)
+  // O servidor compara local, categoria, texto e «impressão digital» das fotografias.
+  // Para cada ocorrência parecida, o munícipe escolhe: «Eu também vi» ou «É outro problema».
   let timer = null;
-  mapEl.addEventListener('tu-location', () => { clearTimeout(timer); timer = setTimeout(checkDuplicates, 300); });
+  let checked = false;          // já verificámos com os dados atuais?
+  let pendingSubmit = false;    // o munícipe carregou em Enviar enquanto verificávamos
+  ['change', 'input'].forEach(ev => form.addEventListener(ev, e => {
+    if (e.target.name !== 'not_duplicate') checked = false;
+  }));
+  mapEl.addEventListener('tu-location', () => { checked = false; clearTimeout(timer); timer = setTimeout(checkDuplicates, 400); });
+
+  function markDifferent(id) {
+    if (form.querySelector(`input[name="not_duplicate"][value="${id}"]`)) return;
+    const input = document.createElement('input');
+    input.type = 'hidden'; input.name = 'not_duplicate'; input.value = id;
+    form.append(input);
+    dismissed.add(id);
+  }
 
   async function checkDuplicates() {
     const lat = document.getElementById('latitude').value;
     const lng = document.getElementById('longitude').value;
-    const cat = form.querySelector('input[name="category_id"]:checked');
-    if (!lat || !lng || !cat) { dupBox.hidden = true; return; }
+    if (!lat || !lng || !form.querySelector('input[name="category_id"]:checked')) { dupBox.hidden = true; return []; }
     try {
-      const data = await Townly.api(`/api/v1/incidents/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&category_id=${cat.value}`);
-      const found = data.incidents.find(i => !dismissed.has(i.id));
-      found ? showDuplicate(found, data.radius_m) : (dupBox.hidden = true);
-    } catch (e) { dupBox.hidden = true; }
+      const data = await Townly.api('/api/v1/incidents/similar', { method: 'POST', body: new FormData(form) });
+      checked = true;
+      const open = data.incidents.filter(i => !dismissed.has(i.id));
+      open.length ? showDuplicates(open) : (dupBox.hidden = true);
+      return open;
+    } catch (e) { checked = true; dupBox.hidden = true; return []; }  // sem verificação: o servidor volta a verificar
   }
 
-  function showDuplicate(i, radius) {
+  function showDuplicates(list) {
     dupBox.replaceChildren();
-    const title = document.createElement('div');
-    title.className = 'fw-bold mb-1';
-    title.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i> ';
-    title.append(document.createTextNode('Parece que alguém já comunicou isto'));
-    const text = document.createElement('p');
-    text.className = 'small mb-2';
-    text.textContent = `${i.ticket} · ${i.category} · a ${i.distance_m} m daqui · ${i.status}` +
-      (i.seen ? ` · ${i.seen + 1} munícipes já viram` : '') + '. É o mesmo problema?';
-    const row = document.createElement('div');
-    row.className = 'd-flex flex-wrap gap-2';
+    const head = document.createElement('div');
+    head.className = 'fw-bold mb-1';
+    head.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i> ';
+    head.append(document.createTextNode(list.length > 1 ? 'Estes problemas parecem o mesmo que o seu' : 'Este problema parece já ter sido comunicado'));
+    dupBox.append(head);
 
-    const yes = document.createElement('button');
-    yes.type = 'button';
-    yes.className = 'btn btn-success btn-sm';
-    yes.innerHTML = '<i class="bi bi-eye"></i> Sim — «Eu também vi»';
-    yes.addEventListener('click', async () => {
-      yes.disabled = true;
-      try {
-        const res = await Townly.api(`/api/v1/incidents/${i.id}/confirm`, { method: 'POST', body: { kind: 'seen' } });
-        Townly.updatePoints(res.total_points);
-        Townly.toast(`Confirmado! +${res.points} pontos. Obrigado por evitar duplicados.`);
-        setTimeout(() => { location.href = '/mapa'; }, 1400);
-      } catch (e) { Townly.toast(e.message); yes.disabled = false; }
+    list.forEach(i => {
+      const item = document.createElement('div');
+      item.className = 'tu-dup-item';
+      const text = document.createElement('div');
+      text.className = 'flex-grow-1';
+      const top = document.createElement('div');
+      top.innerHTML = '<b></b> · ';
+      top.querySelector('b').textContent = i.ticket;
+      top.append(document.createTextNode(`${i.category} · ${i.status}` + (i.seen ? ` · ${i.seen + 1} munícipes já viram` : '')));
+      const why = document.createElement('div');
+      why.className = 'small text-muted';
+      why.innerHTML = '<span class="tu-dup-score"></span> — ';
+      why.querySelector('span').textContent = `${Math.round(i.score * 100)}% parecida`;
+      why.append(document.createTextNode(i.reasons.join(' · ')));
+
+      const actions = document.createElement('div');
+      actions.className = 'tu-dup-actions';
+      const same = document.createElement('button');
+      same.type = 'button';
+      same.className = 'btn btn-success btn-sm';
+      same.innerHTML = '<i class="bi bi-eye"></i> É este — «Eu também vi»';
+      same.addEventListener('click', async () => {
+        same.disabled = true;
+        try {
+          const res = await Townly.api(`/api/v1/incidents/${i.id}/confirm`, { method: 'POST', body: { kind: 'seen' } });
+          Townly.updatePoints(res.total_points);
+          Townly.toast(`Obrigado! Juntámos o seu aviso ao ${i.ticket} (+${res.points} pontos).`);
+          setTimeout(() => { location.href = '/mapa'; }, 1400);
+        } catch (e) { Townly.toast(e.message); same.disabled = false; }
+      });
+      const other = document.createElement('button');
+      other.type = 'button';
+      other.className = 'btn btn-outline-secondary btn-sm';
+      other.textContent = 'Não, é outro problema';
+      other.addEventListener('click', () => {
+        markDifferent(i.id);
+        item.remove();
+        if (!dupBox.querySelector('.tu-dup-item')) {
+          dupBox.hidden = true;
+          if (pendingSubmit) { pendingSubmit = false; submit(); }
+        }
+      });
+      actions.append(same, other);
+      text.append(top, why, actions);
+      item.append(text);
+      dupBox.append(item);
     });
-
-    const no = document.createElement('button');
-    no.type = 'button';
-    no.className = 'btn btn-outline-secondary btn-sm';
-    no.textContent = 'Não, é outro problema';
-    no.addEventListener('click', () => { dismissed.add(i.id); checkDuplicates(); });
-
-    row.append(yes, no);
-    dupBox.append(title, text, row);
     dupBox.hidden = false;
+    dupBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  // Evita envios duplicados ao carregar duas vezes no botão.
-  form.addEventListener('submit', e => {
-    for (let n = 1; n <= 2; n++) if (!valid(n)) { e.preventDefault(); show(n); return; }
+  function submit() {
     document.getElementById('send').disabled = true;
+    HTMLFormElement.prototype.submit.call(form);
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    for (let n = 1; n <= 2; n++) if (!valid(n)) { show(n); return; }
+    const send = document.getElementById('send');
+    send.disabled = true;  // evita envios duplicados ao carregar duas vezes
+    const open = checked ? [...dupBox.querySelectorAll('.tu-dup-item')] : await checkDuplicates();
+    send.disabled = false;
+    if (open.length) { pendingSubmit = true; Townly.toast('Antes de enviar, diga se é o mesmo problema.'); return; }
+    submit();
   });
 
   show(step);

@@ -8,7 +8,7 @@ import io
 import os
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -66,8 +66,10 @@ TICKET_RE = re.compile(r"TU-\d{4}-\d{4,}")
 class ValidationError(Exception):
     """Erros de validação por campo: {'title': 'mensagem', ...}."""
 
-    def __init__(self, errors):
+    def __init__(self, errors, similar=None, suspended=False):
         self.errors = errors
+        self.similar = similar or []      # ocorrências parecidas (deteção de repetidos)
+        self.suspended = suspended        # conta suspensa por conteúdo impróprio
         super().__init__("; ".join(errors.values()))
 
 
@@ -139,6 +141,29 @@ def parse_coordinate(value):
 PARISH_CODES = {code for code, _ in reference.PARISHES}
 
 
+def password_problem(password):
+    if len(password) < 8 or not re.search(r"\d", password) or not re.search(r"[A-Za-z]", password):
+        return "A palavra-passe precisa de 8+ caracteres, com letras e números."
+    return None
+
+
+def _check_password(errors, password, confirm, field="password"):
+    problem = password_problem(password)
+    if problem:
+        errors[field] = problem
+    elif password != confirm:
+        errors["confirm"] = "As palavras-passe não coincidem."
+
+
+def _check_name_email(db, errors, name, email):
+    if not 2 <= len(name) <= 100:
+        errors["name"] = "Indique o nome (2 a 100 caracteres)."
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or len(email) > 120:
+        errors["email"] = "Indique um email válido."
+    elif db.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
+        errors["email"] = "Já existe uma conta com este email."
+
+
 def validate_registration(db, form):
     name = form.get("name", "").strip()
     email = form.get("email", "").strip().lower()
@@ -151,10 +176,7 @@ def validate_registration(db, form):
         errors["email"] = "Indique um email válido."
     elif db.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
         errors["email"] = "Já existe uma conta com este email."
-    if len(password) < 8 or not re.search(r"\d", password) or not re.search(r"[A-Za-z]", password):
-        errors["password"] = "A palavra-passe precisa de 8+ caracteres, com letras e números."
-    elif password != confirm:
-        errors["confirm"] = "As palavras-passe não coincidem."
+    _check_password(errors, password, confirm)
     parish = form.get("parish", "").strip() or None
     if parish is not None and parish not in PARISH_CODES:
         errors["parish"] = "Escolha uma freguesia da lista."
@@ -177,6 +199,92 @@ def create_user(db, name, email, password_hash, role="citizen", parish=None, org
             db.execute("INSERT INTO user_parishes (user_id, parish_code) VALUES (?, ?) ON CONFLICT DO NOTHING",
                        (user_id, parish))
     return user_id
+
+
+# ------------------------------------------------------------------ Contas das entidades (geridas pela Câmara)
+def staff_accounts(db):
+    return db.execute(
+        """SELECT u.id, u.name, u.email, u.role, u.active, u.created_at, u.last_login_at,
+                  o.name AS org_name, o.kind AS org_kind
+             FROM users u JOIN organizations o ON o.id = u.organization_id
+            ORDER BY o.kind, o.name, u.name""").fetchall()
+
+
+def organizations_for_select(db):
+    return db.execute(
+        "SELECT id, name, kind FROM organizations WHERE active = TRUE ORDER BY kind, name").fetchall()
+
+
+def create_staff(db, form, password_hash_fn):
+    """A Câmara cria a conta de um técnico (Junta, serviço técnico ou a própria Câmara)."""
+    name = form.get("name", "").strip()
+    email = form.get("email", "").strip().lower()
+    password = form.get("password", "")
+    errors = {}
+    _check_name_email(db, errors, name, email)
+    _check_password(errors, password, password)
+    org = None
+    try:
+        org = db.execute("SELECT * FROM organizations WHERE id = ? AND active = TRUE",
+                         (int(form.get("organization_id", "")),)).fetchone()
+    except ValueError:
+        pass
+    if org is None:
+        errors["organization_id"] = "Escolha a entidade."
+    role = "admin" if org is not None and org["kind"] == "camara" and form.get("central") == "1" else "staff"
+    if errors:
+        raise ValidationError(errors)
+    return create_user(db, name, email, password_hash_fn(password), role=role, organization_id=org["id"])
+
+
+def set_user_active(db, actor, user_id, active):
+    if user_id == actor["id"]:
+        raise ValidationError({"user": "Não pode desativar a sua própria conta."})
+    target = db.execute("SELECT id, role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if target is None or target["role"] == "citizen":
+        raise ValidationError({"user": "Conta não encontrada."})
+    with db:
+        db.execute("UPDATE users SET active = ? WHERE id = ?", (bool(active), user_id))
+
+
+# ------------------------------------------------------------------ Fotografia de perfil
+AVATAR_SIZE = 320
+
+
+def set_avatar(db, user, file_storage, max_bytes):
+    """Valida a imagem (conteúdo, tamanho, sem EXIF), corta ao centro em quadrado e reduz a 320×320."""
+    if not file_storage or not file_storage.filename:
+        raise ValidationError({"avatar": "Escolha uma fotografia."})
+    try:
+        data, _ext = process_image(file_storage, max_bytes)
+        with Image.open(io.BytesIO(data)) as img:
+            img = ImageOps.fit(img.convert("RGB"), (AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS, centering=(.5, .4))
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=86, optimize=True)
+    except ValueError as exc:
+        raise ValidationError({"avatar": f"Fotografia: {exc}."}) from None
+    with db:
+        db.execute("UPDATE users SET avatar = ?, avatar_type = 'image/jpeg', avatar_updated_at = ? WHERE id = ?",
+                   (out.getvalue(), utcnow(), user["id"]))
+
+
+def remove_avatar(db, user):
+    with db:
+        db.execute("UPDATE users SET avatar = NULL, avatar_type = NULL, avatar_updated_at = NULL WHERE id = ?", (user["id"],))
+
+
+def change_password(db, user, form, verify_fn, hash_fn, require_current=True):
+    """Muda a palavra-passe (ou define-a, se a conta ainda não tiver uma)."""
+    errors = {}
+    row = db.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],)).fetchone()
+    if require_current and not verify_fn(row["password_hash"], form.get("current", "")):
+        errors["current"] = "A palavra-passe atual está errada."
+    new = form.get("password", "")
+    _check_password(errors, new, form.get("confirm", ""))
+    if errors:
+        raise ValidationError(errors)
+    with db:
+        db.execute("UPDATE users SET password_hash = ?, has_password = TRUE WHERE id = ?", (hash_fn(new), user["id"]))
 
 
 def organization_by(db, kind, value=None):
@@ -251,6 +359,96 @@ def _notify(db, user_ids, incident_id, kind, message, now, exclude=()):
                    (uid, incident_id, kind, message, now))
 
 
+# ------------------------------------------------------------------ Alertas da comunidade
+def _alert_community(db, incident_id, parish_code, category_name, ticket, now, exclude=()):
+    place = db.execute("SELECT short_name FROM parishes WHERE code = ?", (parish_code,)).fetchone() if parish_code else None
+    where = place["short_name"] if place else "no concelho"
+    local = set()
+    if parish_code:
+        local = {r["id"] for r in db.execute(
+            """SELECT u.id FROM users u WHERE u.role = 'citizen' AND u.active = TRUE
+                 AND (u.parish_code = ? OR EXISTS (SELECT 1 FROM user_parishes f WHERE f.user_id = u.id AND f.parish_code = ?))""",
+            (parish_code, parish_code))}
+    others = {r["id"] for r in db.execute(
+        "SELECT id FROM users WHERE role = 'citizen' AND active = TRUE AND alert_scope = 'all'")} - local
+    _notify(db, sorted(local), incident_id, "zone",
+            f"Novo problema na sua freguesia ({where}): {category_name} · {ticket}.", now, exclude=exclude)
+    _notify(db, sorted(others), incident_id, "zone",
+            f"Novo problema em {where}: {category_name} · {ticket}.", now, exclude=exclude)
+
+
+def set_alert_scope(db, user, scope):
+    if scope not in ("all", "followed"):
+        raise ValidationError({"scope": "Opção inválida."})
+    with db:
+        db.execute("UPDATE users SET alert_scope = ? WHERE id = ?", (scope, user["id"]))
+
+
+# ------------------------------------------------------------------ Apagar (pelo autor)
+DELETABLE_STATUSES = (REGISTADA, EM_ANALISE)
+
+
+def can_delete(user, incident):
+    return (user is not None and user["role"] == "citizen" and incident["author_id"] == user["id"]
+            and incident["status"] in DELETABLE_STATUSES)
+
+
+def delete_incident(db, user, incident):
+    """O autor apaga a ocorrência enquanto a entidade ainda não a está a tratar.
+    Deixa de aparecer em todo o lado, as fotografias são eliminadas e os pontos ligados a ela retirados.
+    O registo e o histórico ficam (RF10/RF11: o histórico é imutável e as ocorrências não se apagam fisicamente)."""
+    if not can_delete(user, incident):
+        raise ValidationError({"delete": "Esta ocorrência já está a ser tratada e não pode ser apagada."})
+    now = utcnow()
+    with db:
+        db.execute("UPDATE incidents SET deleted_at = ?, updated_at = ? WHERE id = ?", (now, now, incident["id"]))
+        db.execute("""INSERT INTO status_history (incident_id, actor_id, previous_status, new_status, note, changed_at)
+                      VALUES (?, ?, ?, ?, ?, ?)""",
+                   (incident["id"], user["id"], incident["status"], incident["status"], "Ocorrência apagada pelo autor.", now))
+        db.execute("DELETE FROM incident_images WHERE incident_id = ?", (incident["id"],))
+        db.execute("DELETE FROM confirmations WHERE incident_id = ?", (incident["id"],))
+        db.execute("DELETE FROM points_log WHERE incident_id = ?", (incident["id"],))
+        db.execute("DELETE FROM notifications WHERE incident_id = ?", (incident["id"],))
+
+
+# ------------------------------------------------------------------ Moderação
+SUSPEND_AFTER = 3          # recusas por conteúdo impróprio...
+SUSPEND_WINDOW_DAYS = 30   # ...neste período → conta suspensa
+
+
+def _moderate(db, author, images, category_name):
+    """Recusa automaticamente fotografias impróprias ou sem relação com o espaço público.
+    Cada recusa fica registada; à 3.ª recusa por conteúdo impróprio a conta é suspensa."""
+    import moderation
+    try:
+        moderation.review(images, category_name)
+    except moderation.ModerationError:
+        raise ValidationError({"photos": "Não foi possível verificar as fotografias neste momento. "
+                                         "Tente novamente daqui a pouco."}) from None
+    except moderation.Rejected as rej:
+        now = utcnow()
+        suspended = False
+        with db:
+            db.execute("INSERT INTO moderation_events (user_id, reason, description, created_at) VALUES (?, ?, ?, ?)",
+                       (author["id"], rej.reason, rej.description[:300], now))
+            if rej.inappropriate:
+                since = (datetime.now(timezone.utc) - timedelta(days=SUSPEND_WINDOW_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+                count = db.execute(
+                    """SELECT COUNT(*) FROM moderation_events WHERE user_id = ? AND created_at >= ?
+                          AND reason IN ('sexual', 'violencia', 'odio')""", (author["id"], since)).fetchone()[0]
+                if count >= SUSPEND_AFTER:
+                    db.execute("UPDATE users SET active = FALSE WHERE id = ?", (author["id"],))
+                    suspended = True
+        n = f"A fotografia {rej.index + 1}" if len(images) > 1 else "A fotografia"
+        if suspended:
+            msg = f"{n} foi recusada: {rej}. A conta foi suspensa por envio repetido de conteúdo impróprio."
+        elif rej.inappropriate:
+            msg = f"{n} foi recusada: {rej}. Conteúdo impróprio é proibido e envios repetidos suspendem a conta."
+        else:
+            msg = f"{n} foi recusada: {rej}. Fotografe o problema na rua (buraco, lixo, iluminação...)."
+        raise ValidationError({"photos": msg}, suspended=suspended) from None
+
+
 # ------------------------------------------------------------------ Ocorrências
 def create_incident(db, upload_dir, author, form, files, max_bytes):
     """RF03–RF06: valida, grava imagens, cria o ticket, encaminha e avisa quem deve receber."""
@@ -311,23 +509,40 @@ def create_incident(db, upload_dir, author, form, files, max_bytes):
     if errors:
         raise ValidationError(errors)
 
+    # 1) Repetidos: compara local, categoria, texto e «impressão digital» das fotografias.
+    import similarity
+    hashes = similarity.hashes_for(images)
+    dismissed = set()
+    for value in (form.getlist("not_duplicate") if hasattr(form, "getlist") else []):
+        if str(value).isdigit():
+            dismissed.add(int(value))
+    similar = similarity.find_similar(db, lat, lng, category["id"], f"{title} {description}", hashes)
+    pending = [s for s in similar if s["id"] not in dismissed]
+    if pending:
+        raise ValidationError({"duplicate": "Este problema parece já ter sido comunicado. Confirme se é o mesmo."},
+                              similar=pending)
+    similar_to = similar[0]["id"] if similar else None
+
+    # 2) Moderação automática das fotografias (conteúdo impróprio ou sem relação com o espaço público).
+    _moderate(db, author, images, category["name"])
+
     org = route_incident(db, category["id"], parish_code)
     saved = _store_images(upload_dir, images)
     now = utcnow()
     with db:  # transação: ou grava tudo, ou não grava nada
         incident_id = db.execute(
             """INSERT INTO incidents (author_id, category_id, parish_code, organization_id, title, description,
-                   latitude, longitude, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+                   latitude, longitude, status, created_at, updated_at, similar_to)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""",
             (author["id"], category["id"], parish_code, org["id"], title, description,
-             round(lat, 6), round(lng, 6), REGISTADA, now, now),
+             round(lat, 6), round(lng, 6), REGISTADA, now, now, similar_to),
         ).fetchone()[0]
         ticket = f"TU-{now[:4]}-{incident_id:04d}"  # RF06: TU-AAAA-NNNN
         db.execute("UPDATE incidents SET ticket = ? WHERE id = ?", (ticket, incident_id))
         db.executemany(
-            """INSERT INTO incident_images (incident_id, stored_filename, content_type, data, kind, uploaded_at)
-               VALUES (?, ?, ?, ?, 'report', ?)""",
-            [(incident_id, name, ctype, data, now) for name, ctype, data in saved],
+            """INSERT INTO incident_images (incident_id, stored_filename, content_type, data, phash, kind, uploaded_at)
+               VALUES (?, ?, ?, ?, ?, 'report', ?)""",
+            [(incident_id, name, ctype, data, h, now) for (name, ctype, data), h in zip(saved, hashes)],
         )
         db.execute(
             """INSERT INTO status_history (incident_id, actor_id, previous_status, new_status, note, changed_at)
@@ -343,14 +558,9 @@ def create_incident(db, upload_dir, author, form, files, max_bytes):
             (org["id"], parish_code)).fetchall()]
         _notify(db, staff, incident_id, "assigned", f"Nova ocorrência {ticket}: {category['name']}.", now)
 
-        # Recetores 2: todas as pessoas que seguem esta freguesia (alertas, como no Waze).
-        if parish_code:
-            place = db.execute("SELECT short_name FROM parishes WHERE code = ?", (parish_code,)).fetchone()
-            followers = [r["user_id"] for r in db.execute(
-                "SELECT user_id FROM user_parishes WHERE parish_code = ?", (parish_code,)).fetchall()]
-            _notify(db, followers, incident_id, "zone",
-                    f"Novo problema em {place['short_name']}: {category['name']} ({ticket}).", now,
-                    exclude={author["id"], *staff})
+        # Recetores 2: a comunidade (como no Waze). Quem vive ou segue a freguesia recebe «na sua freguesia»;
+        # os restantes munícipes recebem também, salvo se escolheram só as freguesias que seguem.
+        _alert_community(db, incident_id, parish_code, category["name"], ticket, now, exclude={author["id"], *staff})
     return incident_id, ticket
 
 
@@ -476,7 +686,7 @@ INCIDENT_SELECT = """
 
 
 def get_incident(db, incident_id):
-    return db.execute(INCIDENT_SELECT + " WHERE i.id = ?", (incident_id,)).fetchone()
+    return db.execute(INCIDENT_SELECT + " WHERE i.id = ? AND i.deleted_at IS NULL", (incident_id,)).fetchone()
 
 
 def get_history(db, incident_id):
@@ -499,7 +709,7 @@ def get_images(db, incident_id):
 def search_incidents(db, view="ativas", status="", category_id="", q="", author_id=None, sort="recentes",
                      user=None, parish=""):
     """RF08: pesquisa e filtros (sempre com parâmetros — nunca concatenar texto do utilizador)."""
-    where, params = [], []
+    where, params = ["i.deleted_at IS NULL"], []
     if user is not None:
         clause, extra = scope_clause(user)
         if clause:
@@ -536,7 +746,7 @@ def search_incidents(db, view="ativas", status="", category_id="", q="", author_
 
 
 def status_counts(db, author_id=None, user=None):
-    where, params = [], []
+    where, params = ["i.deleted_at IS NULL"], []
     if user is not None:
         clause, extra = scope_clause(user)
         if clause:
@@ -554,7 +764,7 @@ def status_counts(db, author_id=None, user=None):
 
 def category_counts(db, user=None):
     clause, params = scope_clause(user) if user is not None else ("", [])
-    join_filter = f" AND {clause}" if clause else ""
+    join_filter = " AND i.deleted_at IS NULL" + (f" AND {clause}" if clause else "")
     return db.execute(
         f"""SELECT c.name, COUNT(i.id) AS n FROM categories c
               LEFT JOIN incidents i ON i.category_id = c.id{join_filter}
@@ -570,7 +780,7 @@ def parish_overview(db):
         f"""SELECT p.code, p.name, p.short_name, p.landmark, p.image_credit,
                    COUNT(CASE WHEN i.status IN ({active}) THEN 1 END) AS active,
                    COUNT(CASE WHEN i.status = ? THEN 1 END) AS resolved
-              FROM parishes p LEFT JOIN incidents i ON i.parish_code = p.code
+              FROM parishes p LEFT JOIN incidents i ON i.parish_code = p.code AND i.deleted_at IS NULL
              GROUP BY p.code, p.name, p.short_name, p.landmark, p.image_credit
              ORDER BY p.short_name""",
         (*ACTIVE_STATUSES, RESOLVIDA),

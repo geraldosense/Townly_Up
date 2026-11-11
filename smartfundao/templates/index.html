@@ -2,8 +2,16 @@
 {% block title %}Início{% endblock %}
 {% block main_class %}pb-5{% endblock %}
 {% block hero %}
-<section class="tu-hero mb-5" id="hero">
+<section class="tu-hero tu-hero-photo" id="hero">
+  {# Fotografias que alternam a cada 5 s, por ordem aleatória (static/img/hero-fundao-N.jpg e -N-960.jpg).
+     Para juntar outra: gravar os dois ficheiros e acrescentar o número a data-photos. #}
+  <div class="tu-hero-slides" id="hero-slides" aria-hidden="true"
+       data-base="{{ url_for('static', filename='img/hero-fundao') }}" data-photos="1">
+    <div class="tu-hero-slide is-active"></div>
+    <div class="tu-hero-slide"></div>
+  </div>
   <div class="tu-hero-bg" id="hero-bg" aria-hidden="true"></div>
+  <div class="tu-hero-shade" aria-hidden="true"></div>
   <div class="container position-relative">
     <div class="row g-4 g-lg-5 align-items-center">
       <div class="col-lg-6">
@@ -13,11 +21,9 @@
         <p class="tu-lede mb-4">O pedido chega à entidade certa — Câmara, Junta de Freguesia ou serviço técnico — e quem vive na freguesia é avisado.</p>
         <div class="d-flex flex-wrap align-items-center gap-4 mb-4">
           {% if g.user and g.user.role in ('admin', 'staff') %}
-            <a class="btn btn-primary btn-lg" href="{{ url_for('admin_dashboard') }}">Abrir o painel</a>
+            <a class="btn btn-light btn-lg tu-hero-cta" href="{{ url_for('admin_dashboard') }}">Abrir o painel</a>
           {% elif g.user %}
-            <a class="btn btn-primary btn-lg" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
-          {% else %}
-            <a class="btn btn-primary btn-lg" href="{{ url_for('register') }}">Criar conta</a>
+            <a class="btn btn-light btn-lg tu-hero-cta" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
           {% endif %}
           <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Ver o mapa de ocorrências →</a>
         </div>
@@ -35,6 +41,30 @@
     </div>
   </div>
 </section>
+
+{# Acesso rápido: índice numerado que sobe por cima do fundo do topo #}
+<nav class="container tu-index-wrap" aria-label="Acesso rápido">
+  <ol class="tu-index">
+    {% set links = [
+      ('new_incident', 'Comunicar', 'Em 3 passos, com fotografia', 'camera'),
+      ('live_map', 'Mapa de ocorrências', 'O que se passa perto de si', 'map'),
+      ('parishes_index', 'Freguesias', 'As 23 juntas do concelho', 'geo-alt'),
+      ('how_it_works', 'Como funciona', 'Do aviso à resolução', 'signpost-split'),
+      ('rules', 'Regras', 'O que publicar e o que não', 'shield-check'),
+      ('privacy', 'Privacidade', 'Os seus dados e fotografias', 'lock'),
+    ] %}
+    {% for endpoint, title, sub, icon in links %}
+      <li>
+        <a class="tu-index-item" href="{{ url_for(endpoint) }}">
+          <span class="tu-index-top"><span class="tu-index-num">{{ '%02d'|format(loop.index) }}</span><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span>
+          <span class="tu-index-title">{{ title }}</span>
+          <span class="tu-index-sub">{{ sub }}</span>
+          <span class="tu-index-arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ol>
+</nav>
 {% endblock %}
 
 {% block content %}
@@ -86,6 +116,38 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/parishes.js') }}?v={{ asset_version }}"></script>
 <script>
+  // Topo: fotografia aleatória a cada 5 s. Duas camadas que se cruzam (fade); cada imagem só é
+  // descarregada quando vai aparecer. Com «reduzir movimento» fica uma só fotografia (também aleatória).
+  (function () {
+    const box = document.getElementById('hero-slides');
+    if (!box) return;
+    const layers = box.querySelectorAll('.tu-hero-slide');
+    const photos = box.dataset.photos.split(',');
+    const small = matchMedia('(max-width: 768px)').matches;
+    const url = n => `${box.dataset.base}-${n}${small ? '-960' : ''}.jpg`;
+    let current = null, front = 0;
+    function pick() {                      // aleatória, mas nunca a mesma duas vezes seguidas
+      const choices = photos.filter(n => n !== current);
+      return choices[Math.floor(Math.random() * choices.length)];
+    }
+    function show(n, layer) {
+      const img = new Image();
+      img.onload = () => {
+        layer.style.backgroundImage = `url("${img.src}")`;
+        layers.forEach(l => l.classList.toggle('is-active', l === layer));
+      };
+      img.src = url(n);
+      current = n;
+    }
+    show(pick(), layers[0]);
+    if (photos.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    setInterval(() => {
+      if (document.hidden) return;
+      front = 1 - front;
+      show(pick(), layers[front]);
+    }, 5000);
+  })();
+
   // Mapa das freguesias no topo da página (SVG: funciona mesmo sem internet).
   (async function () {
     const geo = await TownlyParishes.load();
