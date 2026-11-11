@@ -1,0 +1,17 @@
+{# Painel lateral das páginas de acesso: uma «prancha» cartográfica do concelho #}
+<aside class="tu-plate" aria-label="Concelho do Fundão">
+  <div class="tu-plate-head">
+    <span>Folha 01</span><span>Concelho do Fundão</span>
+  </div>
+  <div class="tu-plate-map" id="auth-plate-map" aria-hidden="true"></div>
+  <div class="tu-plate-body">
+    <p class="tu-plate-kicker">Townly Up</p>
+    <h2 class="tu-plate-title">Cada rua do concelho tem quem olhe por ela.</h2>
+    <dl class="tu-plate-ledger">
+      <div><dt>{{ auth_figures.active }}</dt><dd>ocorrências em curso</dd></div>
+      <div><dt>{{ auth_figures.resolved }}</dt><dd>{{ "resolvida" if auth_figures.resolved == 1 else "resolvidas" }}</dd></div>
+      <div><dt>23</dt><dd>freguesias</dd></div>
+    </dl>
+  </div>
+  <div class="tu-plate-foot"><span>40°08′ N · 7°30′ O</span><span>Limites: CAOP 2022 · DGT</span></div>
+</aside>

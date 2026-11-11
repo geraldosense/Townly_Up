@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid %}
+{% block title %}Criar conta{% endblock %}
+{% block content %}
+<div class="tu-auth">
+  {% include "_auth_side.html" %}
+  <section class="tu-auth-form">
+    <p class="tu-auth-step">Registo de munícipe</p>
+    <h1 class="tu-auth-title">Criar conta</h1>
+    <p class="tu-auth-lede">Comunique problemas no espaço público e receba os alertas da sua freguesia.</p>
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label" for="name">Nome</label>
+        <input class="form-control{{ invalid(errors, 'name') }}" id="name" name="name" value="{{ form.get('name', '') }}" maxlength="100" autocomplete="name" required>
+        {{ field_error(errors, 'name') }}
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" maxlength="120" placeholder="nome@exemplo.pt" autocomplete="email" required>
+        {{ field_error(errors, 'email') }}
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="parish">A sua freguesia <span class="text-muted fw-normal">(opcional — recebe os alertas dela)</span></label>
+        <select class="form-select{{ invalid(errors, 'parish') }}" id="parish" name="parish">
+          <option value="">Prefiro não indicar</option>
+          {% for code, name in parishes %}<option value="{{ code }}" {{ 'selected' if form.get('parish') == code }}>{{ name }}</option>{% endfor %}
+        </select>
+        {{ field_error(errors, 'parish') }}
+      </div>
+      <div class="row g-3 mb-1">
+        <div class="col-sm-6">
+          <label class="form-label" for="password">Palavra-passe</label>
+          <input class="form-control{{ invalid(errors, 'password') }}" type="password" id="password" name="password" autocomplete="new-password" required>
+          {{ field_error(errors, 'password') }}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="confirm">Confirmar</label>
+          <input class="form-control{{ invalid(errors, 'confirm') }}" type="password" id="confirm" name="confirm" autocomplete="new-password" required>
+          {{ field_error(errors, 'confirm') }}
+        </div>
+      </div>
+      <div class="form-text mb-3">Mínimo 8 caracteres, com letras e números.</div>
+      <div class="form-check mb-4">
+        <input class="form-check-input{{ invalid(errors, 'terms') }}" type="checkbox" id="terms" name="terms" value="1" {{ 'checked' if form.get('terms') }}>
+        <label class="form-check-label small" for="terms">Compreendo que é uma demonstração académica e que não devo submeter dados pessoais reais nem fotografias de pessoas.</label>
+        {{ field_error(errors, 'terms') }}
+      </div>
+      <button class="btn btn-primary tu-auth-submit" type="submit">Criar conta</button>
+    </form>
+    <p class="tu-auth-note">Já tem conta? <a href="{{ url_for('login') }}">Entrar</a></p>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}{% include "_auth_scripts.html" %}{% endblock %}

@@ -1,0 +1,35 @@
+Imagens de fundo das freguesias — Townly Up
+
+Coloque aqui uma fotografia do ponto principal de cada freguesia, com o CÓDIGO como nome:
+    050406.jpg   (também serve .jpeg, .png ou .webp)
+
+O site usa-as automaticamente na página inicial e na página de cada freguesia.
+Tamanho recomendado: 1600 × 900 px (horizontal), até 500 KB. Use só fotografias suas ou com licença livre.
+
+Opcional: em legendas.json indique o nome do ponto principal e o autor da fotografia, por exemplo:
+    "050406": {"ponto": "Chafariz de D. João V", "credito": "Foto: Nome Apelido"}
+
+Códigos:
+    050401  Alcaide
+    050402  Alcaria
+    050403  Alcongosta
+    050406  Alpedrinha
+    050408  Barroca
+    050410  Bogas de Cima
+    050411  Capinha
+    050412  Castelejo
+    050413  Castelo Novo
+    050431  Enxames
+    050416  Fatela
+    050434  Fundão, Valverde, Donas, Aldeia de Joanes e Aldeia Nova do Cabo
+    050433  Janeiro de Cima e Bogas de Baixo
+    050419  Lavacolhos
+    050420  Orca
+    050421  Pêro Viseu
+    050435  Póvoa de Atalaia e Atalaia do Campo
+    050424  Silvares
+    050425  Soalheira
+    050426  Souto da Casa
+    050427  Telhado
+    050432  Três Povos
+    050436  Vale de Prazeres e Mata da Rainha

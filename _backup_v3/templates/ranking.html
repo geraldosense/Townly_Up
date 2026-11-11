@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Ranking{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Comunidade</div>
+    <h1>Quem mais ajuda o Fundão</h1>
+  </div>
+  {% if g.user and g.user.role == 'citizen' %}
+    <a class="btn btn-outline-primary" href="{{ url_for('live_map') }}">Ver o mapa de ocorrências</a>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="tu-card mb-4"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-person-fill"></i> Top munícipes</h2>
+      {% for p in people %}
+        <div class="tu-rank-row">
+          <span class="tu-rank-pos {{ 'top-' ~ loop.index if loop.index <= 3 }}">{{ loop.index }}</span>
+          <span class="tu-avatar">{{ p.name[:1] }}</span>
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold">{{ p.name }}{% if g.user and g.user.id == p.id %} <span class="badge text-bg-success">Você</span>{% endif %}</div>
+            <div class="small text-muted text-truncate"><i class="bi bi-{{ p.level.icon }}"></i> {{ p.level.name }}{% if p.parish %} · {{ p.parish }}{% endif %}</div>
+          </div>
+          <div class="fw-bold text-primary text-nowrap">{{ p.points }} pts</div>
+        </div>
+      {% else %}
+        <div class="tu-empty"><i class="bi bi-trophy"></i><p class="mt-2 mb-0">Ainda ninguém pontuou. Seja o primeiro!</p></div>
+      {% endfor %}
+    </div></div>
+
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-geo-alt-fill"></i> Freguesias mais participativas</h2>
+      {% set top = (parishes|map(attribute='points')|max) if parishes else 1 %}
+      {% for f in parishes %}
+        <div class="d-flex justify-content-between small mt-2"><span class="fw-semibold">{{ loop.index }}. {{ f.parish }}</span>
+          <span><b>{{ f.points }}</b> pts · {{ f.members }} munícipe{{ 's' if f.members != 1 }}</span></div>
+        <div class="tu-bar mt-1"><span style="width: {{ (f.points / top * 100)|round }}%"></span></div>
+      {% else %}
+        <p class="small text-muted mb-0">Quando os munícipes indicarem a freguesia no registo, a competição entre freguesias aparece aqui.</p>
+      {% endfor %}
+    </div></div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if me %}
+      <div class="mb-4">{% with lvl = me.level %}{% include "_level_card.html" %}{% endwith %}</div>
+      {% if me.recent %}
+      <div class="tu-card mb-4"><div class="card-body">
+        <h2 class="tu-section"><i class="bi bi-clock-history"></i> Os seus últimos pontos</h2>
+        {% for r in me.recent %}
+          <div class="d-flex justify-content-between small py-1">
+            <span>{{ r.label }}{% if r.ticket %} <span class="text-muted">· {{ r.ticket }}</span>{% endif %}</span>
+            <b class="text-success">+{{ r.points }}</b>
+          </div>
+        {% endfor %}
+      </div></div>
+      {% endif %}
+    {% endif %}
+
+    <div class="tu-card mb-4"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-star-fill"></i> Como ganhar pontos</h2>
+      {% for key, value in points.items() %}
+        <div class="d-flex justify-content-between small py-1"><span>{{ reasons[key] }}</span><b class="text-success">+{{ value }}</b></div>
+      {% endfor %}
+    </div></div>
+
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-bar-chart-steps"></i> Níveis</h2>
+      <ul class="list-unstyled tu-level-list mb-0">
+        {% for min, name, icon in levels %}
+          <li class="{{ 'current' if me and me.level.name == name }}"><i class="bi bi-{{ icon }}"></i>
+            <span class="flex-grow-1 fw-semibold">{{ name }}</span><span class="small text-muted">{{ min }}+ pts</span></li>
+        {% endfor %}
+      </ul>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

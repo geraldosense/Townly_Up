@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ parish.short_name }}{% endblock %}
+{% block main_class %}pb-5{% endblock %}
+{% block hero %}
+<section class="tu-parish-hero{{ '' if image else ' no-image' }} mb-4" {% if image %}style="background-image: url('{{ image }}')"{% endif %}>
+  <div class="container">
+    <p class="tu-kicker mb-2">Freguesia · Concelho do Fundão</p>
+    <h1>{{ parish.short_name }}</h1>
+    {% if parish.landmark %}<p class="mb-0 mt-1">{{ parish.landmark }}</p>{% endif %}
+  </div>
+  {% if image and parish.image_credit %}<span class="tu-parish-credit">{{ parish.image_credit }}</span>{% endif %}
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+      <h2 class="tu-section-title">Ocorrências nesta freguesia</h2>
+      <a class="tu-link-arrow" href="{{ url_for('live_map', freguesia=parish.code) }}">Ver no mapa →</a>
+    </div>
+    {% if items %}
+      <table class="tu-ledger">
+        <thead><tr><th>Categoria</th><th>Estado</th><th class="tu-hide-sm">Confirmações</th><th class="text-end">Registada</th></tr></thead>
+        <tbody>
+          {% for i in items %}
+            <tr>
+              <td><span class="tu-cat-dot" style="--c: {{ i.color }}"></span>{{ i.category }}<div class="small text-muted">{{ i.ticket }}</div></td>
+              <td><span class="tu-badge st-{{ i.slug }}">{{ i.status }}</span></td>
+              <td class="tu-hide-sm">{{ i.seen + 1 }} munícipe{{ 's' if i.seen else '' }}</td>
+              <td class="text-end text-muted small text-nowrap">{{ i.created_at|local('%d/%m/%Y') }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-muted">Não há ocorrências em curso nesta freguesia.</p>
+    {% endif %}
+  </div>
+
+  <aside class="col-lg-4">
+    <dl class="tu-figures-inline mb-4">
+      <div><dt>{{ parish.active }}</dt><dd>em curso</dd></div>
+      <div><dt>{{ parish.resolved }}</dt><dd>{{ "resolvida" if parish.resolved == 1 else "resolvidas" }}</dd></div>
+    </dl>
+    <h2 class="h5">Quem trata</h2>
+    <p class="text-muted small">Os problemas desta freguesia são encaminhados para o serviço técnico da categoria
+      ou para a {{ junta.name if junta else 'Junta de Freguesia' }}. A Câmara Municipal acompanha todos.</p>
+
+    {% if g.user %}
+      <form method="post" action="{{ url_for('follow_parishes') }}" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        {# Mantém as outras freguesias seguidas e acrescenta/retira esta #}
+        {% for code in followed_others %}<input type="hidden" name="parish" value="{{ code }}">{% endfor %}
+        {% if not following %}<input type="hidden" name="parish" value="{{ parish.code }}">{% endif %}
+        <button class="btn {{ 'btn-outline-secondary' if following else 'btn-primary' }} w-100" type="submit">
+          {{ 'Deixar de receber alertas' if following else 'Receber alertas desta freguesia' }}</button>
+      </form>
+    {% else %}
+      <a class="btn btn-outline-primary w-100 mt-3" href="{{ url_for('login', next=request.path) }}">Entrar para receber alertas</a>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

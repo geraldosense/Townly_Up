@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Início{% endblock %}
+{% block main_class %}pb-5{% endblock %}
+{% block hero %}
+<section class="tu-hero mb-5">
+  <div class="container">
+    <div class="row g-5 align-items-end">
+      <div class="col-lg-8">
+        <p class="tu-kicker mb-3">Fundão · Castelo Branco</p>
+        <h1 class="tu-display mb-0">O espaço público do Fundão, visto por quem lá vive.</h1>
+        <hr class="tu-rule-gold">
+        <p class="tu-lede mb-4">Comunique um buraco, um candeeiro apagado ou lixo acumulado. Recebe um número de
+          ticket e acompanha o pedido até a central municipal o dar por resolvido.</p>
+        <div class="d-flex flex-wrap align-items-center gap-4">
+          {% if g.user and g.user.role == 'admin' %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('admin_dashboard') }}">Abrir painel municipal</a>
+          {% elif g.user %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+          {% else %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('register') }}">Criar conta e comunicar</a>
+          {% endif %}
+          <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Ver o mapa de ocorrências →</a>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="tu-figures">
+          <div><div class="tu-figure-n">{{ stats.active }}</div><div class="tu-figure-l">{{ "ocorrência" if stats.active == 1 else "ocorrências" }} em curso</div></div>
+          <div><div class="tu-figure-n">{{ stats.resolved }}</div><div class="tu-figure-l">{{ "resolvida" if stats.resolved == 1 else "resolvidas" }} pela central</div></div>
+          <div><div class="tu-figure-n">23</div><div class="tu-figure-l">freguesias do concelho</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<!-- Território: freguesias interativas (aparece quando existem os limites CAOP em static/data) -->
+<section class="mb-5" id="territory" hidden>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div>
+      <h2 class="tu-section-title">O território do Fundão</h2>
+      <p class="text-muted mb-0 mt-1">Passe o cursor sobre uma freguesia para ver o nome e as ocorrências em curso. Clique para a abrir no mapa.</p>
+    </div>
+    <div class="tu-heat-legend small text-muted" aria-hidden="true">
+      <span>Sem ocorrências</span><span class="tu-heat-scale"></span><span>Mais ocorrências</span>
+    </div>
+  </div>
+  <div class="tu-territory-map" id="territory-map"></div>
+  <div class="tu-territory-foot">Mapa administrativo · CAOP 2022 / DGT · <span id="territory-total"></span></div>
+</section>
+
+<section class="mb-5">
+  <h2 class="tu-section-title mb-3">Como funciona</h2>
+  <div class="row g-0 tu-steps-row">
+    {% for title, text in [
+        ('Fotografe o problema', 'Tire a fotografia no próprio site. Só o problema — sem pessoas nem matrículas.'),
+        ('Indique o local', 'O GPS marca o ponto no mapa. Se alguém já o comunicou, avisamos.'),
+        ('Receba o ticket', 'Cada ocorrência tem uma referência única, por exemplo TU-2026-0042.'),
+        ('Acompanhe', 'Registada, em análise, em tratamento, resolvida — com data e nota em cada passo.')] %}
+    <div class="col-md-6 col-lg-3">
+      <div class="tu-step-n">{{ loop.index }}</div>
+      <h3 class="h6 mb-1">{{ title }}</h3>
+      <p class="text-muted mb-0 small">{{ text }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="mb-5">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <h2 class="tu-section-title">Últimas ocorrências</h2>
+    <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Todas no mapa →</a>
+  </div>
+  {% if recent %}
+  <div class="table-responsive">
+    <table class="tu-ledger" id="ledger">
+      <thead><tr><th>Categoria</th><th class="tu-hide-sm">Freguesia</th><th>Estado</th><th class="tu-hide-sm">Confirmações</th><th class="text-end">Registada</th></tr></thead>
+      <tbody>
+        {% for i in recent %}
+          <tr data-lat="{{ i.lat }}" data-lng="{{ i.lng }}">
+            <td><span class="tu-cat-dot" style="--c: {{ i.color }}"></span>{{ i.category }}<div class="small text-muted">{{ i.ticket }}</div></td>
+            <td class="tu-hide-sm text-muted" data-parish>—</td>
+            <td><span class="tu-badge st-{{ i.slug }}">{{ i.status }}</span></td>
+            <td class="tu-hide-sm">{{ i.seen + 1 }} munícipe{{ 's' if i.seen else '' }}</td>
+            <td class="text-end text-muted text-nowrap small">{{ i.created_at|local('%d/%m/%Y') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted">Ainda não há ocorrências em curso.</p>
+  {% endif %}
+</section>
+
+<div class="row g-4 mb-2">
+  <div class="col-lg-6">
+    <h2 class="h4">Uma cidade que se vê a si própria</h2>
+    <p class="text-muted mb-0">Quando vários munícipes confirmam o mesmo problema com «Eu também vi», ele ganha prioridade
+      no painel da central. Quem participa ganha pontos e a sua freguesia sobe no <a href="{{ url_for('ranking') }}">quadro de participação</a>.</p>
+  </div>
+  <div class="col-lg-6">
+    <div class="tu-callout">
+      <i class="bi bi-exclamation-triangle"></i>
+      <div>O Townly Up é para problemas no espaço público. <b>Não</b> serve para emergências — nesses casos ligue
+        <b>112</b> — nem para denúncias contra pessoas.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/parishes.js') }}"></script>
+<script>
+  // Mapa das freguesias e coluna «Freguesia» (desenhado em SVG: funciona mesmo sem internet).
+  (async function () {
+    const geo = await TownlyParishes.load();
+    if (!geo) return;                        // sem limites descarregados: a secção fica escondida
+    document.querySelectorAll('#ledger tr[data-lat]').forEach(row => {
+      const f = TownlyParishes.find(geo, +row.dataset.lat, +row.dataset.lng);
+      if (f) row.querySelector('[data-parish]').textContent = TownlyParishes.nameOf(f);
+    });
+    let items = [];
+    try { items = (await Townly.api('/api/v1/map')).incidents.filter(i => i.slug !== 'resolvida'); } catch (e) {}
+    const counts = TownlyParishes.countBy(geo, items);
+    document.getElementById('territory').hidden = false;
+    document.getElementById('territory-total').textContent =
+      `${geo.features.length} freguesias · ${items.length} ocorrências em curso`;
+    TownlyParishes.svgMap(document.getElementById('territory-map'), geo, {
+      counts,
+      onClick: f => { location.href = '/mapa?freguesia=' + encodeURIComponent(TownlyParishes.codeOf(f)); },
+    });
+  })();
+</script>
+{% endblock %}

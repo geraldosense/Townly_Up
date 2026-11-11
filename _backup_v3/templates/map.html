@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Mapa vivo{% endblock %}
+{% block main_class %}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block hero %}
+<div class="tu-live" id="live"
+     data-role="{{ g.user.role if g.user else 'anon' }}"
+     data-login="{{ url_for('login', next=url_for('live_map')) }}"
+     data-lat="{{ center[0] }}" data-lng="{{ center[1] }}">
+  <aside class="tu-live-panel">
+    <div class="tu-live-head">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div>
+          <div class="tu-eyebrow">Ao vivo · Fundão</div>
+          <h1 class="h4 mb-0">Mapa vivo</h1>
+          <div class="small text-muted" id="live-count">A carregar ocorrências…</div>
+        </div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Estado">
+          <input type="radio" class="btn-check" name="scope" id="scope-active" value="active" checked>
+          <label class="btn btn-outline-primary" for="scope-active">Ativas</label>
+          <input type="radio" class="btn-check" name="scope" id="scope-resolved" value="resolved">
+          <label class="btn btn-outline-primary" for="scope-resolved">Resolvidas</label>
+        </div>
+      </div>
+      <div class="tu-chips mt-3" id="chips">
+        <button type="button" class="tu-chip-filter active" data-cat="">Todas</button>
+        {% for c in categories %}{% set st = category_style(c.name) %}
+          <button type="button" class="tu-chip-filter" data-cat="{{ c.id }}" style="--c: {{ st.color }}"><i class="bi bi-{{ st.icon }}"></i> {{ c.name }}</button>
+        {% endfor %}
+      </div>
+      <div class="mt-2" id="parish-filter" hidden></div>
+      {% if not g.user %}
+        <div class="alert alert-info small py-2 mt-2 mb-0 tu-alert"><i class="bi bi-info-circle"></i>
+          <a href="{{ url_for('login', next=url_for('live_map')) }}">Entre</a> para confirmar ocorrências e ganhar pontos.</div>
+      {% endif %}
+    </div>
+    <div class="tu-live-list" id="feed" aria-live="polite"></div>
+  </aside>
+
+  <section class="tu-live-map">
+    <div id="live-map" class="tu-map"></div>
+    <div class="tu-map-toggle"><button type="button" class="btn btn-sm active" id="toggle-parishes" aria-pressed="true" hidden><i class="bi bi-bounding-box"></i> Freguesias</button></div>
+    <div class="tu-map-legend d-none d-sm-block"><i class="bi bi-people-fill text-danger"></i> nº de munícipes que viram o problema</div>
+    <div class="tu-fab">
+      <button type="button" class="tu-fab-locate" id="locate" title="Perto de mim" aria-label="Mostrar ocorrências perto de mim"><i class="bi bi-crosshair fs-5"></i></button>
+      {% if g.user and g.user.role == 'citizen' %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/parishes.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live.js') }}"></script>
+{% endblock %}

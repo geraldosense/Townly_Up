@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="mb-3" style="opacity:.35">{% include "_logo.html" %}</div>
+  <div class="tu-error-code">{{ code }}</div>
+  <h1 class="h3 mt-2">{{ title }}</h1>
+  <p class="text-muted">{{ text }}</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}"><i class="bi bi-house"></i> Voltar ao início</a>
+</div>
+{% endblock %}

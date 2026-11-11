@@ -1,0 +1,21 @@
+<script src="{{ url_for('static', filename='js/parishes.js') }}?v={{ asset_version }}"></script>
+<script>
+  // Desenho estático das 23 freguesias na prancha (sem interação).
+  (async function () {
+    const el = document.getElementById('auth-plate-map');
+    const geo = el && await TownlyParishes.load();
+    if (!geo) return;
+    TownlyParishes.svgMap(el, geo, { tooltip: false, heat: false });
+    el.querySelectorAll('[tabindex]').forEach(p => { p.removeAttribute('tabindex'); p.removeAttribute('role'); });
+  })();
+  // Mostrar / esconder a palavra-passe
+  document.querySelectorAll('[data-reveal]').forEach(btn => {
+    const input = document.getElementById(btn.dataset.reveal);
+    btn.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.textContent = show ? 'Esconder' : 'Mostrar';
+      btn.setAttribute('aria-pressed', String(show));
+    });
+  });
+</script>

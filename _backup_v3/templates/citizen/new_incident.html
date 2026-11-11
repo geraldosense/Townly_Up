@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid %}
+{% block title %}Comunicar ocorrência{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+{# Passo em que há erros (para o assistente abrir logo aí depois de uma validação falhada) #}
+{% set error_step = 1 if errors.get('category_id') else (2 if errors.get('photos') or errors.get('description') or errors.get('title') or errors.get('privacy') else (3 if errors.get('location') else 1)) %}
+<div class="row justify-content-center">
+  <div class="col-lg-8 col-xl-7">
+    <div class="tu-page-head mb-3">
+      <div><div class="tu-eyebrow">Comunicar em 3 passos</div><h1>O que viu?</h1></div>
+      <a class="btn btn-link text-decoration-none" href="{{ url_for('live_map') }}">Cancelar</a>
+    </div>
+
+    <form id="incident-form" method="post" enctype="multipart/form-data" novalidate data-error-step="{{ error_step }}" data-radius="{{ radius }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="tu-steps" aria-hidden="true"><span class="done"></span><span></span><span></span></div>
+
+      <!-- PASSO 1: categoria -->
+      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="1">
+        <h2 class="tu-section"><span class="tu-num">1</span> Que tipo de problema é?</h2>
+        <div class="tu-cat-grid">
+          {% for c in categories %}{% set st = category_style(c.name) %}
+            <div class="tu-cat-tile">
+              <input type="radio" name="category_id" id="cat-{{ c.id }}" value="{{ c.id }}" {{ 'checked' if form.get('category_id') == c.id|string }}>
+              <label for="cat-{{ c.id }}" style="--c: {{ st.color }}"><i class="bi bi-{{ st.icon }}"></i>{{ c.name }}</label>
+            </div>
+          {% endfor %}
+        </div>
+        {{ field_error(errors, 'category_id') }}
+      </section>
+
+      <!-- PASSO 2: fotografia e descrição -->
+      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="2">
+        <h2 class="tu-section"><span class="tu-num">2</span> Mostre-nos o problema</h2>
+        <!-- Botões de fotografia (aparecem com JavaScript). Sem JavaScript fica o campo de ficheiro normal. -->
+        <div class="tu-photo-actions" id="photo-actions" hidden>
+          <button type="button" class="tu-photo-btn tu-photo-btn-main" id="open-camera">
+            <i class="bi bi-camera-fill"></i><span>Tirar fotografia</span><small>Abrir a câmara</small>
+          </button>
+          <label class="tu-photo-btn" for="photos-gallery">
+            <i class="bi bi-images"></i><span>Escolher da galeria</span><small>JPEG, PNG ou WebP</small>
+          </label>
+        </div>
+        <!-- Auxiliares (sem name: não são enviados; o JavaScript junta tudo em #photos) -->
+        <input type="file" id="photos-gallery" accept="image/jpeg,image/png,image/webp" multiple class="visually-hidden" tabindex="-1">
+        <input type="file" id="photos-capture" accept="image/*" capture="environment" class="visually-hidden" tabindex="-1">
+
+        <input class="form-control{{ invalid(errors, 'photos') }}" type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/webp" multiple required>
+        <div class="form-text" id="photos-help">1 a {{ max_images }} fotografias · até 5 MB cada.{% if form %} Volte a tirar ou escolher as fotografias.{% endif %}</div>
+        {{ field_error(errors, 'photos') }}
+        <div id="photo-preview" class="tu-photo-grid my-3"></div>
+
+        <label class="form-label" for="description">Descreva em poucas palavras</label>
+        <textarea class="form-control{{ invalid(errors, 'description') }}" id="description" name="description" rows="3" maxlength="2000" placeholder="Ex.: Buraco grande junto à passadeira, perigoso para motas." required>{{ form.get('description', '') }}</textarea>
+        {{ field_error(errors, 'description') }}
+
+        <details class="mt-2" {{ 'open' if form.get('title') or errors.get('title') }}>
+          <summary class="small text-muted">Adicionar um título (opcional)</summary>
+          <input class="form-control mt-2{{ invalid(errors, 'title') }}" id="title" name="title" maxlength="120" placeholder="Se ficar vazio, usamos o nome da categoria" value="{{ form.get('title', '') }}">
+          {{ field_error(errors, 'title') }}
+        </details>
+
+        <div class="form-check mt-3">
+          <input class="form-check-input{{ invalid(errors, 'privacy') }}" type="checkbox" id="privacy" name="privacy" value="1" {{ 'checked' if form.get('privacy') }}>
+          <label class="form-check-label small" for="privacy">As fotografias mostram apenas o problema, sem pessoas identificáveis, menores ou matrículas.</label>
+          {{ field_error(errors, 'privacy') }}
+        </div>
+      </section>
+
+      <!-- PASSO 3: localização + aviso de duplicados -->
+      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="3">
+        <h2 class="tu-section"><span class="tu-num">3</span> Onde está?</h2>
+        <p class="small text-muted mb-2">Usamos a sua localização; ajuste o marcador se for preciso.</p>
+        <div id="map" class="tu-map{{ ' border-danger' if errors.get('location') }}" data-map="picker"
+             data-lat="{{ center[0] }}" data-lng="{{ center[1] }}"></div>
+        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="use-location"><i class="bi bi-crosshair"></i> Usar a minha localização</button>
+        <div class="row g-2 mt-1">
+          <div class="col-6">
+            <label class="form-label small" for="latitude">Latitude</label>
+            <input class="form-control form-control-sm{{ invalid(errors, 'location') }}" id="latitude" name="latitude" inputmode="decimal" value="{{ form.get('latitude', '') }}" placeholder="40.1405">
+          </div>
+          <div class="col-6">
+            <label class="form-label small" for="longitude">Longitude</label>
+            <input class="form-control form-control-sm{{ invalid(errors, 'location') }}" id="longitude" name="longitude" inputmode="decimal" value="{{ form.get('longitude', '') }}" placeholder="-7.5012">
+          </div>
+        </div>
+        {{ field_error(errors, 'location') }}
+
+        <!-- RF14: aviso de possível duplicado (preenchido pelo JavaScript) -->
+        <div id="duplicate" class="tu-dup mt-3" hidden></div>
+
+        <div id="summary" class="small text-muted mt-3"></div>
+        <button class="btn btn-primary btn-lg w-100 mt-3" type="submit" id="send">Enviar ocorrência</button>
+      </section>
+
+      <div class="d-flex justify-content-between gap-2" id="wizard-nav" hidden>
+        <button type="button" class="btn btn-outline-secondary" id="prev"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <button type="button" class="btn btn-primary ms-auto" id="next">Seguinte <i class="bi bi-arrow-right"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Câmara dentro da aplicação (getUserMedia) -->
+<div class="tu-camera" id="camera" hidden role="dialog" aria-modal="true" aria-label="Câmara">
+  <video id="camera-video" playsinline autoplay muted></video>
+  <div class="tu-camera-flash" id="camera-flash"></div>
+  <div class="tu-camera-top">
+    <button type="button" class="tu-camera-round" id="camera-close" aria-label="Fechar câmara"><i class="bi bi-x-lg"></i></button>
+    <span class="tu-camera-count" id="camera-count">0/{{ max_images }}</span>
+  </div>
+  <div class="tu-camera-hint"><i class="bi bi-shield-check"></i> Fotografe só o problema — sem pessoas nem matrículas.</div>
+  <div class="tu-camera-msg" id="camera-msg" hidden></div>
+  <div class="tu-camera-bar">
+    <div class="tu-camera-last" id="camera-last" aria-hidden="true"></div>
+    <button type="button" class="tu-shutter" id="shutter" aria-label="Tirar fotografia"></button>
+    <button type="button" class="tu-camera-round" id="camera-flip" aria-label="Trocar de câmara"><i class="bi bi-arrow-repeat"></i></button>
+  </div>
+  <button type="button" class="btn btn-success tu-camera-done" id="camera-done" hidden><i class="bi bi-check-lg"></i> Concluído</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script src="{{ url_for('static', filename='js/photos.js') }}"></script>
+<script src="{{ url_for('static', filename='js/new_incident.js') }}"></script>
+{% endblock %}

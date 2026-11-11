@@ -1,0 +1,4 @@
+Flask>=3.0
+Pillow>=10.0
+certifi
+pytest>=8.0

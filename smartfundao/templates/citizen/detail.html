@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import timeline %}
+{% block title %}{{ incident.ticket }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<a class="small text-decoration-none fw-semibold" href="{{ url_for('citizen_dashboard', view='ativas' if incident.status in ['Registada', 'Em análise', 'Em tratamento'] else 'arquivo') }}"><i class="bi bi-arrow-left"></i> As minhas ocorrências</a>
+<div class="row g-4 mt-1">
+  <div class="col-lg-7">{% include "_incident_info.html" %}</div>
+  <div class="col-lg-5">
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-clock-history"></i> Linha temporal</h2>
+      {{ timeline(history) }}
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+{% endblock %}

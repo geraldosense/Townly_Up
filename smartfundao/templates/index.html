@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Início{% endblock %}
+{% block main_class %}pb-5{% endblock %}
+{% block hero %}
+<section class="tu-hero mb-5" id="hero">
+  <div class="tu-hero-bg" id="hero-bg" aria-hidden="true"></div>
+  <div class="container position-relative">
+    <div class="row g-4 g-lg-5 align-items-center">
+      <div class="col-lg-6">
+        <p class="tu-kicker mb-3">Concelho do Fundão · 23 freguesias</p>
+        <h1 class="tu-display mb-0">Veja um problema na rua. Comunique-o. Acompanhe a resolução.</h1>
+        <hr class="tu-rule-gold">
+        <p class="tu-lede mb-4">O pedido chega à entidade certa — Câmara, Junta de Freguesia ou serviço técnico — e quem vive na freguesia é avisado.</p>
+        <div class="d-flex flex-wrap align-items-center gap-4 mb-4">
+          {% if g.user and g.user.role in ('admin', 'staff') %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('admin_dashboard') }}">Abrir o painel</a>
+          {% elif g.user %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+          {% else %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('register') }}">Criar conta</a>
+          {% endif %}
+          <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Ver o mapa de ocorrências →</a>
+        </div>
+        <dl class="tu-figures-inline mb-0">
+          <div><dt>{{ stats.active }}</dt><dd>{{ "em curso" }}</dd></div>
+          <div><dt>{{ stats.resolved }}</dt><dd>{{ "resolvida" if stats.resolved == 1 else "resolvidas" }}</dd></div>
+          <div><dt>{{ stats.people }}</dt><dd>{{ "munícipe" if stats.people == 1 else "munícipes" }}</dd></div>
+        </dl>
+      </div>
+      <div class="col-lg-6">
+        <figure class="tu-hero-map mb-0" id="territory" hidden>
+          <div id="territory-map" class="tu-hero-map-svg"></div>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="mb-5">
+  <h2 class="tu-section-title mb-3">Quem recebe os problemas</h2>
+  <div class="row g-0 tu-steps-row">
+    <div class="col-md-4">
+      <div class="tu-step-n">Munícipes</div>
+      <p class="mb-0 text-muted small">Comunicam com fotografia e localização, confirmam o que outros viram («Eu também vi») e recebem alertas das freguesias que seguem.</p>
+    </div>
+    <div class="col-md-4">
+      <div class="tu-step-n">Juntas e serviços</div>
+      <p class="mb-0 text-muted small">Cada ocorrência é encaminhada automaticamente: ao serviço técnico da categoria (obras, iluminação, limpeza…) ou à Junta da freguesia do local.</p>
+    </div>
+    <div class="col-md-4">
+      <div class="tu-step-n">Câmara Municipal</div>
+      <p class="mb-0 text-muted small">A central vê tudo, reencaminha quando é preciso e acompanha os prazos. Cada passo fica registado no histórico.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <h2 class="tu-section-title">Últimas ocorrências</h2>
+    <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Todas no mapa →</a>
+  </div>
+  {% if recent %}
+  <div class="table-responsive">
+    <table class="tu-ledger">
+      <thead><tr><th>Categoria</th><th class="tu-hide-sm">Freguesia</th><th>Estado</th><th class="tu-hide-sm text-end">Registada</th></tr></thead>
+      <tbody>
+        {% for i in recent %}
+          <tr>
+            <td><span class="tu-cat-dot" style="--c: {{ i.color }}"></span>{{ i.category }}<div class="small text-muted">{{ i.ticket }}</div></td>
+            <td class="tu-hide-sm">{% if i.parish_code %}<a href="{{ url_for('parish_page', code=i.parish_code) }}">{{ i.parish }}</a>{% else %}—{% endif %}</td>
+            <td><span class="tu-badge st-{{ i.slug }}">{{ i.status }}</span></td>
+            <td class="tu-hide-sm text-end text-muted text-nowrap small">{{ i.created_at|local('%d/%m/%Y') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted">Ainda não há ocorrências em curso.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/parishes.js') }}?v={{ asset_version }}"></script>
+<script>
+  // Mapa das freguesias no topo da página (SVG: funciona mesmo sem internet).
+  (async function () {
+    const geo = await TownlyParishes.load();
+    if (!geo) return;                                   // sem limites descarregados: o mapa não aparece
+    let info = [];
+    try { info = await Townly.api('/api/v1/parishes'); } catch (e) {}
+    const byCode = Object.fromEntries(info.map(p => [p.code, p]));
+    const counts = Object.fromEntries(info.map(p => [p.code, p.active]));
+    const caption = document.getElementById('territory-caption');
+    const bg = document.getElementById('hero-bg');
+
+    function describe(f) {
+      const p = byCode[TownlyParishes.codeOf(f)] || {};
+      const strong = document.createElement('strong');
+      strong.textContent = TownlyParishes.nameOf(f);
+      const span = document.createElement('span');
+      span.textContent = `${TownlyParishes.countLine(p.active || 0)}` + (p.landmark ? ` · ${p.landmark}` : '');
+      if (caption) caption.replaceChildren(strong, span);
+      // Imagem do ponto principal da freguesia como fundo (static/img/freguesias/<código>.jpg).
+      bg.style.backgroundImage = p.image ? `url("${p.image}")` : '';
+      bg.classList.toggle('is-visible', Boolean(p.image));
+    }
+
+    document.getElementById('territory').hidden = false;
+    const svg = TownlyParishes.svgMap(document.getElementById('territory-map'), geo, {
+      counts,
+      tooltip: false,
+      onClick: f => { location.href = '/freguesias/' + encodeURIComponent(TownlyParishes.codeOf(f)); },
+    });
+    // Nome da freguesia escrito no próprio mapa (sem caixa a seguir o cursor; o mapa fica parado).
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('class', 'tu-hero-map-label');
+    svg.append(label);
+    const vb = svg.viewBox.baseVal;
+    function showLabel(path, f) {
+      const b = path.getBBox();
+      label.textContent = TownlyParishes.nameOf(f);
+      label.style.display = '';
+      const w = label.getComputedTextLength();
+      const x = Math.min(Math.max(b.x + b.width / 2, w / 2 + 8), vb.width - w / 2 - 8);
+      const y = Math.min(Math.max(b.y + b.height / 2, 30), vb.height - 12);
+      label.setAttribute('x', x.toFixed(1));
+      label.setAttribute('y', y.toFixed(1));
+    }
+    function hideLabel() { label.style.display = 'none'; }
+    hideLabel();
+    svg.querySelectorAll('.tu-parish').forEach(path => {
+      const f = geo.features.find(x => TownlyParishes.codeOf(x) === path.dataset.code);
+      const on = () => { describe(f); showLabel(path, f); };
+      path.addEventListener('mouseenter', on);
+      path.addEventListener('focus', on);
+      path.addEventListener('mouseleave', hideLabel);
+      path.addEventListener('blur', hideLabel);
+    });
+  })();
+</script>
+{% endblock %}

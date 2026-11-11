@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b2a5b">
+  <title>{% block title %}Início{% endblock %} · Townly Up</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
+  <!-- PWA: permite instalar o site no ecrã do telemóvel (base das futuras apps) -->
+  <link rel="manifest" href="{{ url_for('manifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Townly Up">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="d-flex flex-column min-vh-100 {% block body_class %}{% endblock %}">
+  <div class="tu-topbar">
+    <div class="container d-flex justify-content-between gap-3 py-1">
+      <span>Projeto académico · Concelho do Fundão, Castelo Branco</span>
+      <span class="d-none d-sm-inline">Emergências: <b>112</b></span>
+    </div>
+  </div>
+  <nav class="navbar navbar-expand-lg tu-navbar sticky-top">
+    <div class="container">
+      <a class="navbar-brand tu-brand" href="{{ url_for('index') }}">
+        {% include "_logo.html" %}
+        <span class="tu-wordmark">Townly <b>Up</b></span>
+      </a>
+      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Abrir menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+          {% set ep = request.endpoint or '' %}
+          <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'live_map' }}" href="{{ url_for('live_map') }}">Mapa</a></li>
+          <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'ranking' }}" href="{{ url_for('ranking') }}">Ranking</a></li>
+          {% if g.user and g.user.role == 'citizen' %}
+            <li class="nav-item"><a class="nav-link {{ 'active' if ep in ['citizen_dashboard', 'incident_detail'] }}" href="{{ url_for('citizen_dashboard') }}">
+              As minhas ocorrências
+              {% if unread_count %}<span class="tu-dot-badge">{{ unread_count }}</span>{% endif %}</a></li>
+            {% if my_level %}<li class="nav-item"><a class="tu-points-chip" href="{{ url_for('ranking') }}" title="{{ my_level.name }}"><i class="bi bi-{{ my_level.icon }}"></i> <span id="my-points">{{ my_level.points }}</span> pts</a></li>{% endif %}
+            <li class="nav-item"><a class="btn btn-primary my-2 my-lg-0 ms-lg-2" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a></li>
+          {% elif g.user and g.user.role == 'admin' %}
+            <li class="nav-item"><a class="nav-link {{ 'active' if ep.startswith('admin') }}" href="{{ url_for('admin_dashboard') }}">Painel municipal</a></li>
+          {% endif %}
+          {% if g.user %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="tu-avatar">{{ g.user.name[:1]|upper }}</span><span>{{ g.user.name.split()[0] }}</span>
+              </a>
+              <div class="dropdown-menu dropdown-menu-end shadow-sm">
+                <span class="dropdown-item-text small"><b>{{ g.user.name }}</b><br><span class="text-muted">{{ g.user.email }}</span><br>
+                  <span class="badge {{ 'text-bg-primary' if g.user.role == 'admin' else 'text-bg-success' }} mt-1">{{ 'Administrador' if g.user.role == 'admin' else 'Munícipe' }}</span></span>
+                <div class="dropdown-divider"></div>
+                <form method="post" action="{{ url_for('logout') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="dropdown-item" type="submit"><i class="bi bi-box-arrow-right"></i> Terminar sessão</button>
+                </form>
+              </div>
+            </li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'login' }}" href="{{ url_for('login') }}">Entrar</a></li>
+            <li class="nav-item"><a class="btn btn-primary ms-lg-2" href="{{ url_for('register') }}">Criar conta</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow-1 {% block main_class %}py-4 py-md-5{% endblock %}">
+    {% block hero %}{% endblock %}
+    <div class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show tu-alert" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+          </div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="tu-footer mt-auto">
+    <div class="container py-5">
+      <div class="row g-4">
+        <div class="col-md-5">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+            <span class="tu-wordmark">Townly <b>Up</b></span>
+          </div>
+          <p class="mb-0" style="max-width: 26rem">Plataforma para comunicar e acompanhar problemas no espaço público do concelho do Fundão.</p>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="fw-bold text-white mb-2">Serviço</div>
+          <ul class="list-unstyled mb-0 d-grid gap-1">
+            <li><a href="{{ url_for('live_map') }}">Mapa de ocorrências</a></li>
+            <li><a href="{{ url_for('new_incident') }}">Comunicar ocorrência</a></li>
+            <li><a href="{{ url_for('ranking') }}">Participação</a></li>
+          </ul>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="fw-bold text-white mb-2">Informação</div>
+          <p class="mb-1">Não use este serviço para emergências: ligue <b class="text-white">112</b>.</p>
+          <p class="mb-0">Limites administrativos: CAOP, Direção-Geral do Território.</p>
+        </div>
+      </div>
+      <div class="tu-footer-rule mt-4 pt-3 small">
+        Prova de Aptidão Profissional · Técnico de Desenvolvimento de Software · Demonstração com dados fictícios — não é um serviço oficial da Câmara Municipal do Fundão.
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // PWA: regista o service worker (só funciona em http://127.0.0.1 / localhost ou HTTPS).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+  </script>
+  <script src="{{ url_for('static', filename='js/townly.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

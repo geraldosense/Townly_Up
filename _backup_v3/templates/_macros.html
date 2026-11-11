@@ -1,0 +1,41 @@
+{% macro status_badge(status) -%}
+  <span class="tu-badge st-{{ status|slug }}">{{ status }}</span>
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+  {% if errors.get(name) %}<div class="invalid-feedback d-block">{{ errors[name] }}</div>{% endif %}
+{%- endmacro %}
+
+{% macro invalid(errors, name) -%}{{ ' is-invalid' if errors.get(name) else '' }}{%- endmacro %}
+
+{% macro timeline(history) -%}
+  <ol class="tu-timeline">
+    {% for h in history %}
+      <li class="st-{{ h.new_status|slug }}">
+        <div class="d-flex flex-wrap justify-content-between gap-1">
+          <strong>
+            {% if h.previous_status and h.previous_status != h.new_status %}<span class="text-muted fw-semibold">{{ h.previous_status }} →</span> {% endif %}{{ h.new_status }}
+            {% if h.previous_status == h.new_status %}<span class="text-muted fw-normal">(observação)</span>{% endif %}
+          </strong>
+          <small class="text-muted">{{ h.changed_at|local }}</small>
+        </div>
+        <div class="small text-muted"><i class="bi bi-{{ 'building' if h.actor_role == 'admin' else 'person' }}"></i>
+          {{ 'Central municipal' if h.actor_role == 'admin' else 'Munícipe' }} · {{ h.actor_name }}</div>
+        <div class="tu-note mt-1">{{ h.note }}</div>
+      </li>
+    {% endfor %}
+  </ol>
+{%- endmacro %}
+
+{% macro gallery(images, kind, main=false) -%}
+  {% set items = images|selectattr('kind', 'equalto', kind)|list %}
+  {% if items %}
+    <div class="tu-gallery">
+      {% for img in items %}
+        <a href="{{ url_for('media', image_id=img.id) }}" target="_blank" rel="noopener" class="{{ 'tu-photo-main w-100' if main and loop.first }}">
+          <img src="{{ url_for('media', image_id=img.id) }}" alt="Fotografia {{ loop.index }}" loading="lazy">
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+{%- endmacro %}

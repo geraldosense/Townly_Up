@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ocorrência enviada{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-5">
+    <div class="tu-card text-center">
+      <div class="card-body p-4 p-md-5">
+        <div class="tu-success-icon"><i class="bi bi-check-lg"></i></div>
+        <h1 class="h4 mt-3">Ocorrência enviada com sucesso!</h1>
+        <p class="text-muted small mb-0">Registada em {{ incident.created_at|local }}</p>
+        <div class="tu-ticket my-4">
+          <div class="small fw-semibold">Número de ticket</div>
+          <div class="tu-ticket-code">{{ incident.ticket }}</div>
+          <span class="tu-badge st-registada">Registada</span>
+        </div>
+        <p class="text-muted small">A sua ocorrência será analisada pelos serviços municipais. Guarde este número para acompanhar o pedido.</p>
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="{{ url_for('incident_detail', incident_id=incident.id) }}">Ver detalhe do ticket</a>
+          <a class="btn btn-link text-decoration-none" href="{{ url_for('citizen_dashboard') }}">Ver as minhas ocorrências</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Sem ligação{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="mb-3" style="opacity:.4">{% include "_logo.html" %}</div>
+  <h1 class="h3">Está sem ligação à internet</h1>
+  <p class="text-muted">Quando a rede voltar, atualize a página. As suas ocorrências estão guardadas em segurança.</p>
+  <button class="btn btn-primary" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Tentar de novo</button>
+</div>
+{% endblock %}

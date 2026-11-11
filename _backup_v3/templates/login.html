@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Entrar{% endblock %}
+{% block content %}
+<div class="tu-auth row g-0">
+  {% include "_auth_side.html" %}
+  <div class="col-md-7 tu-auth-form">
+    <div class="tu-eyebrow">Bem-vindo de volta</div>
+    <h1 class="h3 mb-4">Entrar na sua conta</h1>
+    {% if error %}<div class="alert alert-danger py-2 tu-alert"><i class="bi bi-x-circle"></i> {{ error }}</div>{% endif %}
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label" for="email">Email</label>
+        <input class="form-control form-control-lg" type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder="nome@exemplo.pt" autocomplete="email" required autofocus>
+      </div>
+      <div class="mb-4">
+        <label class="form-label" for="password">Palavra-passe</label>
+        <input class="form-control form-control-lg" type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-primary btn-lg w-100" type="submit">Entrar</button>
+    </form>
+    <p class="text-center small mt-4 mb-0 text-muted">Ainda não tem conta? <a class="fw-semibold" href="{{ url_for('register') }}">Registe-se aqui</a></p>
+  </div>
+</div>
+{% endblock %}

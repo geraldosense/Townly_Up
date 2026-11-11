@@ -1,0 +1,49 @@
+{# Informação partilhada entre o detalhe do munícipe e o da central #}
+{% from "_macros.html" import status_badge, gallery %}
+<div class="tu-card mb-3"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <div class="tu-eyebrow">{{ incident.category }}</div>
+      <h1 class="h4 mb-1">{{ incident.title }}</h1>
+      <div class="tu-item-code">{{ incident.ticket }}</div>
+    </div>
+    <div class="text-end">{{ status_badge(incident.status) }}
+      <div class="small text-muted mt-1">{{ STATUS_DESCRIPTIONS[incident.status] }}</div></div>
+  </div>
+  {% if counts and (counts.seen or counts.fixed) %}
+    <div class="d-flex flex-wrap gap-3 mb-3 small">
+      {% if counts.seen %}<span class="tu-conf-pill"><i class="bi bi-people-fill"></i> {{ counts.seen + 1 }} munícipes viram este problema</span>{% endif %}
+      {% if counts.fixed %}<span class="text-success fw-semibold"><i class="bi bi-check2-circle"></i> {{ counts.fixed }} dizem que já está resolvido</span>{% endif %}
+    </div>
+  {% endif %}
+  {{ gallery(images, 'report', main=true) }}
+  <dl class="row small tu-meta mt-3 mb-0">
+    <dt class="col-sm-4">Descrição</dt><dd class="col-sm-8 tu-note">{{ incident.description }}</dd>
+    <dt class="col-sm-4">Data de registo</dt><dd class="col-sm-8">{{ incident.created_at|local }}</dd>
+    {% if incident.parish %}<dt class="col-sm-4">Freguesia</dt><dd class="col-sm-8"><a href="{{ url_for('parish_page', code=incident.parish_code) }}">{{ incident.parish }}</a></dd>{% endif %}
+    {% if incident.organization %}<dt class="col-sm-4">Entidade responsável</dt><dd class="col-sm-8">{{ incident.organization }}</dd>{% endif %}
+    {% if incident.priority %}<dt class="col-sm-4">Prioridade</dt><dd class="col-sm-8">{{ incident.priority }}</dd>{% endif %}
+    <dt class="col-sm-4">Coordenadas</dt><dd class="col-sm-8">{{ '%.5f'|format(incident.latitude) }}, {{ '%.5f'|format(incident.longitude) }}</dd>
+  </dl>
+</div></div>
+
+{% if incident.status == 'Resolvida' %}
+<div class="tu-card mb-3" style="border-color:#a9dcb9;background:#f6fcf8"><div class="card-body">
+  <h2 class="tu-section text-success mb-2"><i class="bi bi-check-circle-fill"></i> Intervenção concluída em {{ incident.resolved_at|local }}</h2>
+  <p class="tu-note mb-2">{{ incident.resolution_note }}</p>
+  {{ gallery(images, 'resolution') }}
+</div></div>
+{% endif %}
+
+<div class="tu-card mb-3"><div class="card-body p-2">
+  <div class="tu-map tu-map-sm" data-map="view" data-lat="{{ incident.latitude }}" data-lng="{{ incident.longitude }}"></div>
+  {# GPS: ligações oficiais do Google Maps (abrem a app no telemóvel, sem chave de API) #}
+  <div class="d-flex flex-wrap gap-2 p-2">
+    <a class="btn btn-primary flex-fill tu-gmaps-btn" target="_blank" rel="noopener"
+       href="https://www.google.com/maps/dir/?api=1&amp;destination={{ incident.latitude }},{{ incident.longitude }}&amp;travelmode=driving">
+      <i class="bi bi-sign-turn-right-fill"></i> Como chegar (GPS)</a>
+    <a class="btn btn-outline-primary" target="_blank" rel="noopener"
+       href="https://www.google.com/maps/search/?api=1&amp;query={{ incident.latitude }},{{ incident.longitude }}">
+      <i class="bi bi-google"></i> Ver no Google Maps</a>
+  </div>
+</div></div>

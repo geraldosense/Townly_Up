@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}Painel municipal{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">{{ g.user.org_name or 'Central municipal' }}</div>
+    <h1>{{ 'Painel municipal' if g.user.role == 'admin' else 'Ocorrências da entidade' }}</h1>
+  </div>
+  <span class="small text-muted">{{ g.user.name }} · {{ ROLE_LABELS[g.user.role] }}</span>
+</div>
+
+<!-- RF12 / UC07: contagens por estado -->
+{% set icons = {'Registada': 'inbox', 'Em análise': 'search', 'Em tratamento': 'tools',
+                'Resolvida': 'check2-circle', 'Rejeitada': 'x-circle', 'Duplicada': 'files'} %}
+<div class="row g-2 mb-4">
+  {% for s in ALL_STATUSES %}
+  <div class="col-6 col-md-4 col-xl-2">
+    <a class="tu-stat st-{{ s|slug }} {{ 'active' if filters.status == s }}" href="{{ url_for('admin_dashboard', status=s, view='todas') }}">
+      <span class="tu-stat-icon"><i class="bi bi-{{ icons[s] }}"></i></span>
+      <span><span class="tu-stat-n d-block">{{ counts[s] }}</span><span class="tu-stat-l">{{ s }}</span></span>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="tu-card">
+      <div class="card-body">
+        <form class="row g-2 align-items-end mb-3" method="get">
+          <div class="col-12 col-md-auto">
+            <div class="btn-group w-100" role="group" aria-label="Vista">
+              {% for v, label in [('ativas', 'Ativas'), ('arquivo', 'Arquivo'), ('todas', 'Todas')] %}
+                <input type="radio" class="btn-check" name="view" id="view-{{ v }}" value="{{ v }}" {{ 'checked' if filters.view == v }} onchange="this.form.submit()">
+                <label class="btn btn-outline-primary btn-sm" for="view-{{ v }}">{{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-6 col-md">
+            <label class="form-label small mb-0" for="f-status">Estado</label>
+            <select class="form-select form-select-sm" id="f-status" name="status">
+              <option value="">Todos</option>
+              {% for s in ALL_STATUSES %}<option {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md">
+            <label class="form-label small mb-0" for="f-cat">Categoria</label>
+            <select class="form-select form-select-sm" id="f-cat" name="category_id">
+              <option value="">Todas</option>
+              {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if filters.category_id == c.id|string }}>{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md">
+            <label class="form-label small mb-0" for="f-parish">Freguesia</label>
+            <select class="form-select form-select-sm" id="f-parish" name="parish">
+              <option value="">Todas</option>
+              {% for p in parishes %}<option value="{{ p.code }}" {{ 'selected' if filters.parish == p.code }}>{{ p.short_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md">
+            <label class="form-label small mb-0" for="f-sort">Ordenar</label>
+            <select class="form-select form-select-sm" id="f-sort" name="sort">
+              <option value="recentes" {{ 'selected' if filters.sort != 'confirmadas' }}>Mais recentes</option>
+              <option value="confirmadas" {{ 'selected' if filters.sort == 'confirmadas' }}>Mais confirmadas</option>
+            </select>
+          </div>
+          <div class="col-6 col-md">
+            <label class="form-label small mb-0" for="f-q">Pesquisa</label>
+            <input class="form-control form-control-sm" id="f-q" name="q" value="{{ filters.q }}" placeholder="Ticket, título…">
+          </div>
+          <div class="col-12 col-md-auto d-flex gap-1">
+            <button class="btn btn-primary btn-sm flex-grow-1" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_dashboard') }}" title="Limpar"><i class="bi bi-x-lg"></i></a>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table align-middle tu-table mb-0">
+            <thead><tr><th>Ticket</th><th>Descrição</th><th class="d-none d-md-table-cell">Categoria</th><th class="d-none d-xl-table-cell">Freguesia · Entidade</th><th title="Munícipes que confirmaram"><i class="bi bi-people-fill"></i></th><th>Estado</th><th class="d-none d-sm-table-cell">Data</th></tr></thead>
+            <tbody>
+              {% for i in incidents %}
+                <tr onclick="location.href='{{ url_for('admin_incident', incident_id=i.id) }}'" role="link">
+                  <td class="text-nowrap"><a class="fw-semibold" href="{{ url_for('admin_incident', incident_id=i.id) }}">{{ i.ticket }}</a></td>
+                  <td>{{ i.title }}{% if i.priority == 'Alta' %} <span class="badge rounded-pill text-bg-danger ms-1">Alta</span>{% endif %}</td>
+                  <td class="d-none d-md-table-cell small">{% set st = category_style(i.category) %}<i class="bi bi-{{ st.icon }}" style="color: {{ st.color }}"></i> {{ i.category }}</td>
+                  <td class="d-none d-xl-table-cell small">{{ i.parish or '—' }}<div class="text-muted">{{ i.organization }}</div></td>
+                  <td class="text-nowrap">{% if i.seen_count %}<span class="tu-conf-pill">{{ i.seen_count + 1 }}</span>{% else %}<span class="text-muted small">1</span>{% endif %}
+                    {% if i.fixed_count %}<i class="bi bi-check2-circle text-success" title="{{ i.fixed_count }} dizem que já está resolvido"></i>{% endif %}</td>
+                  <td>{{ status_badge(i.status) }}</td>
+                  <td class="d-none d-sm-table-cell small text-nowrap">{{ i.created_at|local('%d/%m/%Y') }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma ocorrência corresponde aos filtros.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="small text-muted mt-2">{{ incidents|length }} ocorrência(s)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="tu-card mb-3"><div class="card-body p-2">
+      <h2 class="tu-section px-2 pt-2 mb-2"><i class="bi bi-map"></i> Mapa de ocorrências</h2>
+      <div class="tu-map" data-map="multi" data-lat="40.1405" data-lng="-7.5012"></div>
+      <script type="application/json" id="map-points">{{ points|tojson }}</script>
+    </div></div>
+    <div class="tu-card"><div class="card-body">
+      <h2 class="h6">Por categoria</h2>
+      {% set max_n = (category_counts|map(attribute='n')|max) or 1 %}
+      {% for c in category_counts %}
+        <div class="small d-flex justify-content-between"><span>{{ c.name }}</span><b>{{ c.n }}</b></div>
+        <div class="tu-bar mb-2"><span style="width: {{ (c.n / max_n * 100)|round }}%"></span></div>
+      {% endfor %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+{% endblock %}

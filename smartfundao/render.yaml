@@ -1,0 +1,25 @@
+# Render Blueprint — cria o serviço web do Townly Up.
+# A base de dados PostgreSQL vem do Neon (gratuita, não expira): cole o endereço em DATABASE_URL.
+services:
+  - type: web
+    name: townly-up
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    # 1) cria/atualiza as tabelas  2) dados de demonstração (só se SEED_DEMO=1)  3) arranca o servidor
+    startCommand: ./start.sh
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SEED_DEMO
+        value: "1"
+      - key: DATABASE_URL
+        sync: false

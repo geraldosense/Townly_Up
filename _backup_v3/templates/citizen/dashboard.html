@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}As minhas ocorrências{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Olá, {{ g.user.name.split()[0] }}</div>
+    <h1>As minhas ocorrências</h1>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-7">{% with lvl = my_level %}{% include "_level_card.html" %}{% endwith %}</div>
+  <div class="col-md-5">
+    <div class="tu-card tu-card-body h-100 d-flex flex-column justify-content-between gap-2">
+      <div>
+        <h2 class="h5 mb-1" style="font-family: var(--tu-serif)">O que se passa à sua volta</h2>
+        <p class="small text-muted mb-0">No mapa pode confirmar problemas que outros já comunicaram com «Eu também vi» (+2 pontos).</p>
+      </div>
+      <a class="tu-link-arrow align-self-start" href="{{ url_for('live_map') }}">Abrir o mapa →</a>
+    </div>
+  </div>
+</div>
+
+{% if notifications %}
+<div class="tu-card mb-4">
+  <div class="d-flex justify-content-between align-items-center px-3 pt-3">
+    <h2 class="h5 mb-0" style="font-family: var(--tu-serif)">Novidades</h2>
+    <form method="post" action="{{ url_for('notifications_read') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-link btn-sm p-0 text-decoration-none" type="submit">Marcar todas como lidas</button>
+    </form>
+  </div>
+  <ul class="list-group list-group-flush mt-2">
+    {% for n in notifications %}
+      <li class="list-group-item d-flex flex-column flex-sm-row justify-content-between gap-1 px-3">
+        <a class="text-decoration-none" href="{{ url_for('incident_detail', incident_id=n.incident_id) }}">{{ n.message }}</a>
+        <small class="text-muted text-nowrap">{{ n.created_at|local }}</small>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<ul class="nav tu-tabs mb-3">
+  <li class="nav-item"><a class="nav-link {{ 'active' if view == 'ativas' }}" href="{{ url_for('citizen_dashboard', view='ativas') }}">Ativas · {{ active_total }}</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if view == 'arquivo' }}" href="{{ url_for('citizen_dashboard', view='arquivo') }}">Histórico · {{ closed_total }}</a></li>
+</ul>
+
+{% if incidents %}
+  <div>
+    {% for i in incidents %}
+      <a class="tu-item" href="{{ url_for('incident_detail', incident_id=i.id) }}">
+        {% if i.thumb_id %}<img class="tu-item-thumb" src="{{ url_for('media', image_id=i.thumb_id) }}" alt="" loading="lazy">
+        {% else %}<span class="tu-item-thumb"></span>{% endif %}
+        <div class="flex-grow-1 min-w-0">
+          <div class="tu-item-code">{{ i.ticket }}</div>
+          <div class="fw-semibold text-truncate">{{ i.title }}</div>
+          <small class="text-muted">{{ i.category }} · {{ i.created_at|local('%d/%m/%Y') }}</small>
+          {% if i.seen_count %}<div class="tu-conf-pill"><i class="bi bi-people-fill"></i> +{{ i.seen_count }} {{ "confirmou" if i.seen_count == 1 else "confirmaram" }}</div>{% endif %}
+        </div>
+        <div class="d-flex flex-column align-items-end gap-2">
+          {{ status_badge(i.status) }}
+          <i class="bi bi-chevron-right text-muted"></i>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="tu-empty">
+    <i class="bi bi-inbox"></i>
+    <p class="mt-2 mb-3">{{ 'Não tem ocorrências ativas.' if view == 'ativas' else 'Ainda não há ocorrências encerradas.' }}</p>
+    {% if view == 'ativas' %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('new_incident') }}">Comunicar a primeira</a>{% endif %}
+  </div>
+{% endif %}
+{% endblock %}

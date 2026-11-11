@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_macros.html" import timeline, field_error, invalid %}
+{% block title %}{{ incident.ticket }} · Painel{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<a class="small text-decoration-none fw-semibold" href="{{ url_for('admin_dashboard') }}"><i class="bi bi-arrow-left"></i> Painel municipal</a>
+<div class="row g-4 mt-1">
+  <div class="col-lg-7">
+    {% include "_incident_info.html" %}
+    <div class="tu-card"><div class="card-body small">
+      <i class="bi bi-person"></i> Comunicada por <b>{{ incident.author_name }}</b>
+      {% if incident.assigned_name %} · Última atualização por <b>{{ incident.assigned_name }}</b> em {{ incident.updated_at|local }}{% endif %}
+    </div></div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if duplicates %}
+    <div class="tu-dup mb-3">
+      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Possíveis duplicados a menos de 50 m</div>
+      {% for d in duplicates %}
+        <div class="small d-flex justify-content-between gap-2 py-1">
+          <a href="{{ url_for('admin_incident', incident_id=d.id) }}">{{ d.ticket }} · {{ d.category }}</a>
+          <span class="text-muted text-nowrap">{{ d.distance_m }} m · {{ d.status }}</span>
+        </div>
+      {% endfor %}
+      <div class="small text-muted mt-1">Se for o mesmo problema, marque esta como «Duplicada» e indique o ticket original.</div>
+    </div>
+    {% endif %}
+
+    <div class="tu-card mb-3"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-pencil-square"></i> Atualizar ocorrência</h2>
+      {% if closed %}
+        <div class="alert alert-secondary mb-0"><i class="bi bi-archive"></i> Ocorrência encerrada ({{ incident.status }}). Fica arquivada e pesquisável — não é apagada.</div>
+      {% else %}
+        <form method="post" action="{{ url_for('admin_update_status', incident_id=incident.id) }}" enctype="multipart/form-data" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <label class="form-label small" for="new_status">Estado</label>
+            <select class="form-select{{ invalid(errors, 'new_status') }}" id="new_status" name="new_status">
+              <option value="{{ incident.status }}">{{ incident.status }} (manter — só observação/classificação)</option>
+              {% for s in next_statuses %}
+                <option value="{{ s }}" {{ 'selected' if form.get('new_status') == s or (not form and loop.first) }}>→ {{ s }}</option>
+              {% endfor %}
+            </select>
+            {{ field_error(errors, 'new_status') }}
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small" for="priority">Prioridade</label>
+              {% set cur_p = form.get('priority', incident.priority or '') %}
+              <select class="form-select form-select-sm{{ invalid(errors, 'priority') }}" id="priority" name="priority">
+                <option value="">—</option>
+                {% for p in priorities %}<option {{ 'selected' if cur_p == p }}>{{ p }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small" for="organization_id">Entidade responsável</label>
+              {% if g.user.role == 'admin' %}
+                {% set cur_o = form.get('organization_id', incident.organization_id|string) %}
+                {% set kinds = {'camara': 'Câmara', 'servico': 'Serviços técnicos', 'junta': 'Juntas de Freguesia'} %}
+                <select class="form-select form-select-sm{{ invalid(errors, 'organization_id') }}" id="organization_id" name="organization_id">
+                  {% for kind, label in kinds.items() %}
+                    <optgroup label="{{ label }}">
+                      {% for o in organizations if o.kind == kind %}<option value="{{ o.id }}" {{ 'selected' if cur_o == o.id|string }}>{{ o.name }}</option>{% endfor %}
+                    </optgroup>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <div class="form-control form-control-sm bg-transparent">{{ incident.organization }}</div>
+              {% endif %}
+              {{ field_error(errors, 'organization_id') }}
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small" for="note">Observação <span class="text-danger">*</span></label>
+            <textarea class="form-control{{ invalid(errors, 'note') }}" id="note" name="note" rows="3" maxlength="1000" placeholder="Ex.: Equipa deslocada ao local para reparação.">{{ form.get('note', '') }}</textarea>
+            <div class="form-text">Para «Duplicada», indique o ticket original (ex.: TU-2026-0001). Para «Rejeitada», explique o motivo.</div>
+            {{ field_error(errors, 'note') }}
+          </div>
+          <div class="mb-3" id="resolution-box">
+            <label class="form-label small" for="resolution_photo">Fotografia da resolução (opcional, só ao resolver)</label>
+            <input class="form-control form-control-sm{{ invalid(errors, 'resolution_photo') }}" type="file" id="resolution_photo" name="resolution_photo" accept="image/jpeg,image/png,image/webp">
+            {{ field_error(errors, 'resolution_photo') }}
+          </div>
+          <button class="btn btn-primary w-100" type="submit"><i class="bi bi-save"></i> Guardar alterações</button>
+        </form>
+      {% endif %}
+    </div></div>
+
+    <div class="tu-card"><div class="card-body">
+      <h2 class="tu-section"><i class="bi bi-clock-history"></i> Histórico <span class="badge rounded-pill text-bg-light border fw-semibold">imutável</span></h2>
+      {{ timeline(history) }}
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>
+  // Mostra o campo da fotografia de conclusão apenas quando o estado escolhido é «Resolvida».
+  (function () {
+    const select = document.getElementById('new_status');
+    const box = document.getElementById('resolution-box');
+    if (!select || !box) return;
+    const sync = () => { box.style.display = select.value === 'Resolvida' ? '' : 'none'; };
+    select.addEventListener('change', sync);
+    sync();
+  })();
+</script>
+{% endblock %}

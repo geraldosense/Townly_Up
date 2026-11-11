@@ -1,0 +1,6 @@
+Flask>=3.0
+Pillow>=10.0
+certifi
+psycopg[binary]>=3.1
+gunicorn>=22.0
+pytest>=8.0
