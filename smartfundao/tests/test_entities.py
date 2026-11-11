@@ -19,6 +19,13 @@ def add_staff(app, email, kind, value=None):
         return sv.create_user(db, "Técnico", email, hash_password(PASSWORD), role="staff", organization_id=org["id"])
 
 
+def feed(app, email):
+    """Alertas da comunidade (feed calculado na hora) de um utilizador."""
+    with app.app_context():
+        user = get_db().execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        return sv.community_feed(get_db(), user)
+
+
 def incident_row(app, incident_id):
     with app.app_context():
         return sv.get_incident(get_db(), incident_id)
@@ -123,8 +130,9 @@ def test_quem_segue_a_freguesia_recebe_alerta(client, app):
     client.post("/alertas/freguesias", data={"parish": [SEDE]})
     create_incident(client)
 
-    assert len(notifications(app, "carlos@teste.pt", "zone")) == 1      # segue a freguesia
-    assert notifications(app, "ana@teste.pt", "zone") == []             # o autor não
+    assert len(feed(app, "carlos@teste.pt")) == 1                        # segue a freguesia
+    assert "na sua freguesia" in feed(app, "carlos@teste.pt")[0]["message"]
+    assert feed(app, "ana@teste.pt") == []                               # o autor não
     assert len(notifications(app, "obras@teste.pt", "assigned")) == 1   # a entidade responsável
 
 
@@ -185,3 +193,25 @@ def test_base_de_dados_recusa_dados_incoerentes(app):
             db.execute("INSERT INTO categories (name) VALUES ('Vias e pavimentos')")
         with pytest.raises(database.IntegrityError):   # freguesia inexistente
             db.execute("INSERT INTO organizations (name, kind, parish_code) VALUES ('X', 'junta', '999999')")
+
+
+def test_junta_do_fundao_ve_e_resolve_todas_as_ocorrencias_da_freguesia(client, app):
+    """A conta da Junta do Fundão recebe tudo o que acontece na freguesia, mesmo o que foi
+    encaminhado para um serviço técnico, e pode levar cada ocorrência até «Resolvida»."""
+    add_staff(app, "fundao@teste.pt", "junta", SEDE)
+    login(client, "ana@teste.pt")
+    first = create_incident(client)                                   # buraco → Obras Municipais
+    second = create_incident(client, category_id="2", title="Candeeiro apagado",
+                             description="Candeeiro sem luz há uma semana.")
+    client.post("/logout")
+
+    login(client, "fundao@teste.pt")
+    page = client.get("/admin").get_data(as_text=True)
+    with app.app_context():
+        tickets = [r["ticket"] for r in get_db().execute(
+            "SELECT ticket FROM incidents WHERE id IN (?, ?)", (first, second))]
+    assert all(t in page for t in tickets)
+    assert "Nova ocorrência" in client.get("/alertas").get_data(as_text=True)
+    for status in ("Em análise", "Em tratamento", "Resolvida"):
+        assert update(client, first, status).status_code == 302
+    assert incident_row(app, first)["status"] == "Resolvida"

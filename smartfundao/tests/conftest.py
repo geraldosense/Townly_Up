@@ -49,3 +49,12 @@ def sent_emails(monkeypatch):
     outbox = []
     monkeypatch.setattr(mailer, "send_async", lambda *args: outbox.append(args))
     return outbox
+
+
+@pytest.fixture(autouse=True)
+def sent_sms(monkeypatch):
+    """Nem SMS: cada envio fica aqui como (números, texto, pasta)."""
+    import sms
+    outbox = []
+    monkeypatch.setattr(sms, "send_async", lambda *args: outbox.append(args))
+    return outbox

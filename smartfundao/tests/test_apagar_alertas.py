@@ -2,6 +2,7 @@
 import services as sv
 from db import get_db
 from test_flow import app, client, create_incident, login, update  # noqa: F401
+from test_entities import feed
 
 
 def count(app, sql, *params):
@@ -60,14 +61,19 @@ def test_nao_apaga_depois_de_comecar_o_tratamento(client, app):
     assert client.get(f"/incidents/{incident_id}").status_code == 200
 
 
-# ------------------------------------------------------------------ Alertas da comunidade
+# ------------------------------------------------------------------ Alertas da comunidade (feed)
 def test_todos_os_municipes_recebem_alerta(client, app):
     login(client, "ana@teste.pt")
     create_incident(client)
-    assert count(app, """SELECT COUNT(*) FROM notifications n JOIN users u ON u.id = n.user_id
-                          WHERE u.email = 'carlos@teste.pt' AND n.kind = 'zone'""") == 1
-    assert count(app, """SELECT COUNT(*) FROM notifications n JOIN users u ON u.id = n.user_id
-                          WHERE u.email = 'ana@teste.pt' AND n.kind = 'zone'""") == 0   # o autor não
+    assert len(feed(app, "carlos@teste.pt")) == 1
+    assert feed(app, "ana@teste.pt") == []                       # o autor não
+    assert count(app, "SELECT COUNT(*) FROM notifications WHERE kind = 'zone'") == 0   # sem cópias por pessoa
+    client.post("/logout")
+    login(client, "carlos@teste.pt")
+    page = client.get("/alertas").get_data(as_text=True)
+    assert "Novo problema" in page and 'tu-bell-count">1<' in page
+    client.post("/alertas/lidas")
+    assert 'tu-bell-count' not in client.get("/alertas").get_data(as_text=True)
 
 
 def test_mesma_freguesia_recebe_alerta_destacado(client, app):
@@ -77,10 +83,7 @@ def test_mesma_freguesia_recebe_alerta_destacado(client, app):
             db.execute("UPDATE users SET parish_code = '050434' WHERE email = 'carlos@teste.pt'")
     login(client, "ana@teste.pt")
     create_incident(client)  # fica na sede (050434)
-    with app.app_context():
-        msg = get_db().execute("""SELECT n.message FROM notifications n JOIN users u ON u.id = n.user_id
-                                   WHERE u.email = 'carlos@teste.pt'""").fetchone()[0]
-    assert msg.startswith("Novo problema na sua freguesia")
+    assert feed(app, "carlos@teste.pt")[0]["message"].startswith("Novo problema na sua freguesia")
 
 
 def test_so_freguesias_que_sigo(client, app):
@@ -89,5 +92,11 @@ def test_so_freguesias_que_sigo(client, app):
     client.post("/logout")
     login(client, "ana@teste.pt")
     create_incident(client)
-    assert count(app, """SELECT COUNT(*) FROM notifications n JOIN users u ON u.id = n.user_id
-                          WHERE u.email = 'carlos@teste.pt'""") == 0
+    assert feed(app, "carlos@teste.pt") == []
+
+
+def test_apagada_desaparece_dos_alertas(client, app):
+    login(client, "ana@teste.pt")
+    incident_id = create_incident(client)
+    client.post(f"/incidents/{incident_id}/apagar")
+    assert feed(app, "carlos@teste.pt") == []

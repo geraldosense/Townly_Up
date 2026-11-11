@@ -92,23 +92,38 @@
     <a class="tu-link-arrow" href="{{ url_for('live_map') }}">Todas no mapa →</a>
   </div>
   {% if recent %}
-  <div class="table-responsive">
-    <table class="tu-ledger">
-      <thead><tr><th>Categoria</th><th class="tu-hide-sm">Freguesia</th><th>Estado</th><th class="tu-hide-sm text-end">Registada</th></tr></thead>
-      <tbody>
+  {# Faixa de «anúncios»: as ocorrências passam da direita para a esquerda; pára ao passar o rato ou ao focar. #}
+  {% set animate = recent|length >= 3 %}
+  <div class="tu-ticker{{ ' is-animated' if animate }}" style="--tu-ticker-duration: {{ recent|length * 6 }}s" role="region" aria-label="Últimas ocorrências">
+    <div class="tu-ticker-track">
+      {% for copy in ([0, 1] if animate else [0]) %}
+      <ul class="tu-ticker-list" {{ 'aria-hidden=true' if copy }}>
         {% for i in recent %}
-          <tr>
-            <td><span class="tu-cat-dot" style="--c: {{ i.color }}"></span>{{ i.category }}<div class="small text-muted">{{ i.ticket }}</div></td>
-            <td class="tu-hide-sm">{% if i.parish_code %}<a href="{{ url_for('parish_page', code=i.parish_code) }}">{{ i.parish }}</a>{% else %}—{% endif %}</td>
-            <td><span class="tu-badge st-{{ i.slug }}">{{ i.status }}</span></td>
-            <td class="tu-hide-sm text-end text-muted text-nowrap small">{{ i.created_at|local('%d/%m/%Y') }}</td>
-          </tr>
+          <li>
+            <a class="tu-tick" href="{{ url_for('live_map', freguesia=i.parish_code) if i.parish_code else url_for('live_map') }}" {{ 'tabindex=-1' if copy }}>
+              <span class="tu-tick-top">
+                <span class="tu-tick-cat"><span class="tu-cat-dot" style="--c: {{ i.color }}"></span>{{ i.category }}</span>
+                <span class="tu-badge st-{{ i.slug }}">{{ i.status }}</span>
+              </span>
+              <span class="tu-tick-place">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+                <span class="tu-tick-place-name">{{ i.parish or 'Concelho do Fundão' }}<small>Concelho do Fundão</small></span>
+              </span>
+              <span class="tu-tick-meta">
+                <span class="tu-tick-code">{{ i.ticket }}</span>
+                <span>{{ i.created_at|local('%d/%m · %H:%M') }}</span>
+                {% if i.seen %}<span class="tu-tick-seen">+{{ i.seen }} viram</span>{% endif %}
+              </span>
+              <span class="tu-tick-cta">Ver no mapa →</span>
+            </a>
+          </li>
         {% endfor %}
-      </tbody>
-    </table>
+      </ul>
+      {% endfor %}
+    </div>
   </div>
   {% else %}
-    <p class="text-muted">Ainda não há ocorrências em curso.</p>
+    <p class="text-muted">Ainda não há ocorrências. Quando alguém comunicar um problema, aparece aqui.</p>
   {% endif %}
 </section>
 {% endblock %}

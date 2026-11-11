@@ -92,3 +92,26 @@ def test_paginas_da_comunidade_e_rodape(client):
         html = client.get(url).get_data(as_text=True)
         assert text in html, url
     assert "Alpedrinha" in client.get("/freguesias").get_data(as_text=True)
+
+
+def test_contas_de_teste_e_supervisao(app, client):
+    runner = app.test_cli_runner()
+    out = runner.invoke(args=["contas-teste"]).output
+    assert "30 contas de teste criadas" in out and "junta.alpedrinha@townlyup.test" in out
+    assert client.post("/login", data={"email": "junta.alpedrinha@townlyup.test", "password": "TownlyTeste2026"}).status_code == 302
+    assert client.get("/admin/supervisao").status_code == 403          # uma Junta não vê a supervisão
+    client.post("/logout")
+    client.post("/login", data={"email": "supervisao@townlyup.test", "password": "TownlyTeste2026"})
+    page = client.get("/admin/supervisao").get_data(as_text=True)
+    assert "Como está a funcionar o Townly Up" in page and "Desempenho por entidade" in page
+    assert "desativadas" in runner.invoke(args=["contas-teste", "--remover"]).output
+
+
+def test_botao_de_contas_de_teste(client, app):
+    login(client, "rui@teste.pt")
+    assert "Criar contas de teste" in client.get("/admin/contas").get_data(as_text=True)
+    client.post("/admin/contas/teste", data={"action": "criar"})
+    page = client.get("/admin/contas").get_data(as_text=True)
+    assert "junta.alpedrinha@townlyup.test" in page and "TownlyTeste2026" in page
+    client.post("/logout")
+    assert client.post("/login", data={"email": "junta.castelo-novo@townlyup.test", "password": "TownlyTeste2026"}).status_code == 302

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}Supervisão{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Câmara Municipal · supervisão</div>
+    <h1>Como está a funcionar o Townly Up</h1>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('admin_dashboard') }}">Abrir o painel de ocorrências</a>
+</div>
+
+{# ---------------------------------------------------------------- Indicadores principais #}
+<section class="tu-kpis" aria-label="Indicadores principais">
+  <div class="tu-kpi"><dt>Em curso</dt><dd>{{ s.active }}</dd><small>{{ s.new_incidents }} novas nos últimos 7 dias</small></div>
+  <div class="tu-kpi"><dt>Resolvidas</dt><dd>{{ s.counts['Resolvida'] }}</dd>
+    <small>{{ (s.resolution_rate ~ ' % dos pedidos encerrados') if s.resolution_rate is not none else 'ainda sem pedidos encerrados' }}</small></div>
+  <div class="tu-kpi"><dt>Tempo até à 1.ª resposta</dt><dd>{{ s.avg_response if s.avg_response is not none else '—' }}<span>{{ ' dias' if s.avg_response is not none }}</span></dd><small>média, de Registada até a entidade agir</small></div>
+  <div class="tu-kpi"><dt>Tempo até resolver</dt><dd>{{ s.avg_resolution if s.avg_resolution is not none else '—' }}<span>{{ ' dias' if s.avg_resolution is not none }}</span></dd><small>média das resolvidas</small></div>
+  <div class="tu-kpi {{ 'is-alert' if s.stale_total }}"><dt>Sem resposta há {{ s.stale_days }}+ dias</dt><dd>{{ s.stale_total }}</dd><small>{{ 'precisam de atenção' if s.stale_total else 'tudo em dia' }}</small></div>
+  <div class="tu-kpi"><dt>Munícipes</dt><dd>{{ s.citizens }}</dd><small>{{ s.new_users }} novos nos últimos 7 dias · {{ s.staff }} técnicos</small></div>
+</section>
+
+<div class="row g-4">
+  {# ---------------------------------------------------------------- Por entidade #}
+  <div class="col-xl-7">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Desempenho por entidade</h2>
+      {% if s.orgs %}
+      <div class="table-responsive">
+        <table class="table tu-table align-middle mb-0">
+          <thead><tr><th>Entidade</th><th class="text-end">Em curso</th><th class="text-end">Resolvidas</th><th class="text-end">Tempo médio</th><th class="text-end">Atrasadas</th></tr></thead>
+          <tbody>
+            {% for o in s.orgs %}
+              <tr>
+                <td class="fw-semibold">{{ o.name }}</td>
+                <td class="text-end tu-num">{{ o.active }}</td>
+                <td class="text-end tu-num">{{ o.resolved }}</td>
+                <td class="text-end tu-num">{{ (o.avg ~ ' d') if o.avg is not none else '—' }}</td>
+                <td class="text-end">{% if o.stale %}<span class="tu-flag">⚠ {{ o.stale }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<p class="text-muted mb-0">Ainda não há ocorrências.</p>{% endif %}
+    </div></section>
+  </div>
+
+  {# ---------------------------------------------------------------- Estados #}
+  <div class="col-xl-5">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Ocorrências por estado</h2>
+      {% set top = (s.counts.values()|max) or 1 %}
+      <ul class="tu-bars">
+        {% for st in ALL_STATUSES %}
+          <li><span class="tu-bars-label">{{ status_badge(st) }}</span>
+            <span class="tu-bars-track"><span style="width: {{ (s.counts[st] / top * 100)|round(1) }}%"></span></span>
+            <span class="tu-bars-value">{{ s.counts[st] }}</span></li>
+        {% endfor %}
+      </ul>
+      <p class="small text-muted mb-0 mt-2">Total: {{ s.total }} · apagadas pelos autores: {{ s.deleted }}</p>
+    </div></section>
+  </div>
+
+  {# ---------------------------------------------------------------- Freguesias e categorias #}
+  <div class="col-lg-6">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Freguesias com mais ocorrências em curso</h2>
+      {% if s.parishes %}
+        {% set ptop = (s.parishes|map(attribute='active')|max) or 1 %}
+        <ul class="tu-bars">
+          {% for p in s.parishes|sort(attribute='active', reverse=true) %}
+            <li><a class="tu-bars-label" href="{{ url_for('parish_page', code=p.code) }}">{{ p.short_name }}</a>
+              <span class="tu-bars-track"><span style="width: {{ (p.active / ptop * 100)|round(1) }}%"></span></span>
+              <span class="tu-bars-value">{{ p.active }}</span></li>
+          {% endfor %}
+        </ul>
+      {% else %}<p class="text-muted mb-0">Ainda não há ocorrências.</p>{% endif %}
+    </div></section>
+  </div>
+  <div class="col-lg-6">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Tipos de problema</h2>
+      {% set ctop = (s.categories|map(attribute='n')|max) or 1 %}
+      <ul class="tu-bars">
+        {% for c in s.categories %}
+          <li><span class="tu-bars-label">{{ c.name }}</span>
+            <span class="tu-bars-track"><span style="width: {{ (c.n / ctop * 100)|round(1) }}%"></span></span>
+            <span class="tu-bars-value">{{ c.n }}</span></li>
+        {% endfor %}
+      </ul>
+    </div></section>
+  </div>
+
+  {# ---------------------------------------------------------------- Atrasadas #}
+  <div class="col-lg-6">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Pedidos sem resposta há mais de {{ s.stale_days }} dias</h2>
+      {% for i in s.stale %}
+        <a class="tu-item" href="{{ url_for('admin_incident', incident_id=i.id) }}">
+          <div class="flex-grow-1 min-w-0"><div class="tu-item-code">{{ i.ticket }}</div>
+            <div class="small">{{ i.category }} · {{ i.parish or '—' }} · {{ i.organization }}</div></div>
+          <small class="text-muted text-nowrap">desde {{ i.created_at|local('%d/%m') }}</small>
+        </a>
+      {% else %}<p class="text-muted mb-0">Nenhum pedido atrasado.</p>{% endfor %}
+    </div></section>
+  </div>
+
+  {# ---------------------------------------------------------------- Atividade recente #}
+  <div class="col-lg-6">
+    <section class="tu-card h-100"><div class="card-body">
+      <h2 class="tu-section">Atividade recente</h2>
+      {% for a in s.activity %}
+        <div class="tu-activity">
+          <span class="tu-activity-time">{{ a.changed_at|local('%d/%m %H:%M') }}</span>
+          <span class="min-w-0"><a href="{{ url_for('admin_incident', incident_id=a.incident_id) }}" class="fw-semibold">{{ a.ticket }}</a>
+            {% if a.previous_status and a.previous_status != a.new_status %}{{ a.previous_status }} → <b>{{ a.new_status }}</b>{% elif not a.previous_status %}registada{% else %}observação{% endif %}
+            <span class="text-muted">· {{ a.actor_org or 'Munícipe' }}</span></span>
+        </div>
+      {% else %}<p class="text-muted mb-0">Ainda sem atividade.</p>{% endfor %}
+    </div></section>
+  </div>
+</div>
+
+<section class="tu-kpis tu-kpis-small mt-4" aria-label="Comunidade e segurança">
+  <div class="tu-kpi"><dt>Fotografias recusadas (30 dias)</dt><dd>{{ s.moderation }}</dd></div>
+  <div class="tu-kpi"><dt>Contas suspensas</dt><dd>{{ s.suspended }}</dd></div>
+  <div class="tu-kpi"><dt>Duplicadas</dt><dd>{{ s.counts['Duplicada'] }}</dd></div>
+  <div class="tu-kpi"><dt>Rejeitadas</dt><dd>{{ s.counts['Rejeitada'] }}</dd></div>
+</section>
+{% endblock %}

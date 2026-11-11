@@ -1,0 +1,5 @@
+{# Botão «Continuar com o Google» (só munícipes). label: texto do botão #}
+<a class="tu-google-btn" href="{{ url_for('oauth.google_login', next=request.args.get('next', '')) }}" rel="nofollow">
+  <i class="bi bi-google" aria-hidden="true"></i><span>{{ label or 'Continuar com o Google' }}</span>
+</a>
+<div class="tu-auth-or"><span>{{ or_text or 'ou com email' }}</span></div>

@@ -1,0 +1,33 @@
+{% extends "_auth_layout.html" %}
+{% from "_macros.html" import field_error, invalid %}
+{% block title %}Concluir registo{% endblock %}
+{% block auth_form %}
+    <p class="tu-auth-step">Registo com o Google</p>
+    <h1 class="tu-auth-title">Falta só um passo</h1>
+    <p class="tu-auth-lede">A sua conta Google foi confirmada. Escolha a sua freguesia para receber os alertas dela.</p>
+
+    <div class="tu-google-who">
+      <span class="tu-avatar">{{ profile.name[:1]|upper }}</span>
+      <div class="min-w-0"><strong>{{ profile.name }}</strong><span>{{ profile.email }}</span></div>
+      <i class="bi bi-google" aria-label="Conta Google"></i>
+    </div>
+
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="tu-field">
+        <label for="parish">A sua freguesia <span class="text-muted fw-normal">(opcional)</span></label>
+        <select class="form-select{{ invalid(errors, 'parish') }}" id="parish" name="parish">
+          <option value="">Prefiro não indicar</option>
+          {% for code, name in parishes %}<option value="{{ code }}" {{ 'selected' if form.get('parish') == code }}>{{ name }}</option>{% endfor %}
+        </select>
+        {{ field_error(errors, 'parish') }}
+      </div>
+      <div class="form-check mb-4">
+        <input class="form-check-input{{ invalid(errors, 'terms') }}" type="checkbox" id="terms" name="terms" value="1" {{ 'checked' if form.get('terms') }}>
+        <label class="form-check-label small" for="terms">Aceito as regras: publico só problemas reais do espaço público e não envio fotografias que identifiquem pessoas ou matrículas.</label>
+        {{ field_error(errors, 'terms') }}
+      </div>
+      <button class="btn btn-primary tu-auth-submit" type="submit">Concluir registo</button>
+    </form>
+    <p class="tu-auth-note">Usamos apenas o seu nome e email da conta Google. Não temos acesso à sua palavra-passe Google.</p>
+{% endblock %}

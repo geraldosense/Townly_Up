@@ -40,6 +40,51 @@
     </dl>
   </section>
 
+  {# ---------------------------------------------------------------- Dados da conta #}
+  {% set pf = profile_form or {} %}
+  <section class="tu-card tu-profile-section"><div class="card-body">
+    <h2 class="tu-section">Dados da conta</h2>
+    <form method="post" action="{{ url_for('account_profile') }}" novalidate id="profile-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label" for="p-name">Nome</label>
+          <input class="form-control{{ invalid(errors, 'name') }}" id="p-name" name="name" value="{{ pf.get('name', g.user.name) }}" maxlength="100" required>
+          {{ field_error(errors, 'name') }}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="p-email">Email (para entrar)</label>
+          <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="p-email" name="email" value="{{ pf.get('email', g.user.email) }}" maxlength="120" required data-original="{{ g.user.email }}">
+          {{ field_error(errors, 'email') }}
+        </div>
+      </div>
+      <div class="mb-3" id="p-current-wrap" {{ '' if errors.get('current_for_email') or pf.get('email', g.user.email) != g.user.email else 'hidden' }}>
+        <label class="form-label" for="p-current">Palavra-passe atual <small class="text-muted">(obrigatória para mudar o email)</small></label>
+        <div class="tu-field-reveal">
+          <input class="form-control{{ invalid(errors, 'current_for_email') }}" type="password" id="p-current" name="current_for_email" autocomplete="current-password">
+          {{ reveal('p-current') }}
+        </div>
+        {{ field_error(errors, 'current_for_email') }}
+      </div>
+      {% if g.user.role == 'staff' %}
+      <div class="row g-3 mb-3 align-items-end">
+        <div class="col-sm-6">
+          <label class="form-label" for="p-phone">Telemóvel</label>
+          <input class="form-control{{ invalid(errors, 'phone') }}" type="tel" id="p-phone" name="phone" inputmode="tel" placeholder="912 345 678" value="{{ pf.get('phone', g.user.phone or '') }}">
+          {{ field_error(errors, 'phone') }}
+        </div>
+        <div class="col-sm-6">
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="p-sms" name="sms_alerts" value="1" {{ 'checked' if (pf.get('sms_alerts') if pf else g.user.sms_alerts) }}>
+            <label class="form-check-label" for="p-sms">Receber SMS de novas ocorrências{% if g.user.org_kind == 'junta' %} na minha freguesia{% endif %}</label>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <button class="btn btn-primary" type="submit">Guardar dados</button>
+    </form>
+  </div></section>
+
   {# ---------------------------------------------------------------- Palavra-passe #}
   <section class="tu-card tu-profile-section"><div class="card-body">
     <h2 class="tu-section">{{ 'Mudar a palavra-passe' if has_password else 'Criar uma palavra-passe' }}</h2>
@@ -82,6 +127,12 @@
 {% block scripts %}
 {% include "_auth_scripts.html" %}
 <script>
+  // Mudar o email pede a palavra-passe atual: o campo só aparece quando o email muda.
+  (function () {
+    const email = document.getElementById('p-email');
+    const wrap = document.getElementById('p-current-wrap');
+    email.addEventListener('input', () => { wrap.hidden = email.value.trim().toLowerCase() === email.dataset.original; });
+  })();
   // Pré-visualização da nova fotografia antes de a guardar.
   (function () {
     const input = document.getElementById('avatar-input');

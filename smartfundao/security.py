@@ -42,7 +42,7 @@ def load_logged_in_user():
     g.user = None
     if user_id is not None:
         g.user = get_db().execute(
-            """SELECT u.id, u.name, u.email, u.role, u.parish_code, u.organization_id, u.avatar_updated_at, u.created_at,
+            """SELECT u.id, u.name, u.email, u.role, u.parish_code, u.organization_id, u.avatar_updated_at, u.created_at, u.alert_scope, u.alerts_seen_at, u.phone, u.sms_alerts,
                       o.name AS org_name, o.kind AS org_kind, o.parish_code AS org_parish
                  FROM users u LEFT JOIN organizations o ON o.id = u.organization_id
                 WHERE u.id = ? AND u.active = TRUE""",

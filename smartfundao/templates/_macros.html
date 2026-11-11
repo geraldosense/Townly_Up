@@ -50,7 +50,7 @@
 
 {# Fotografia de perfil (ou as iniciais, se não houver). person: precisa de id, name e avatar_updated_at #}
 {% macro avatar(person, size=30, cls='') -%}
-  {% set initials = (person.name.split()[0][:1] ~ (person.name.split()[-1][:1] if person.name.split()|length > 1 else ''))|upper %}
+  {% set initials = person.name|initials %}
   {% if person.avatar_updated_at %}
     <img class="tu-avatar tu-avatar-img {{ cls }}" src="{{ url_for('avatar', user_id=person.id, v=person.avatar_updated_at|replace(' ', 'T')) }}"
          width="{{ size }}" height="{{ size }}" style="width: {{ size }}px; height: {{ size }}px" alt="Fotografia de {{ person.name }}" loading="lazy">

@@ -105,11 +105,11 @@ def process_image(file_storage, max_bytes):
             raise ValueError("formato não permitido (use JPEG, PNG ou WebP)")
         with Image.open(io.BytesIO(data)) as img:
             img = ImageOps.exif_transpose(img)
-            img.thumbnail((1920, 1920))
+            img.thumbnail((1600, 1600))  # suficiente para ver o problema; poupa espaço na base de dados
             if fmt == "JPEG" and img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
             out = io.BytesIO()
-            options = {"quality": 85} if fmt in ("JPEG", "WEBP") else {"optimize": True}
+            options = {"quality": 80, "optimize": True} if fmt in ("JPEG", "WEBP") else {"optimize": True}
             img.save(out, format=fmt, **options)
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, SyntaxError):
         raise ValueError("não é uma imagem válida") from None
@@ -237,6 +237,102 @@ def create_staff(db, form, password_hash_fn):
     return create_user(db, name, email, password_hash_fn(password), role=role, organization_id=org["id"])
 
 
+def _check_phone(errors, raw, required=False):
+    """Devolve o telemóvel normalizado (+3519XXXXXXXX), None se vazio; regista o erro se for inválido."""
+    import sms
+    raw = (raw or "").strip()
+    if not raw:
+        if required:
+            errors["phone"] = "Indique o telemóvel que vai receber as SMS."
+        return None
+    phone = sms.normalize_phone(raw)
+    if phone is None:
+        errors["phone"] = "Indique um telemóvel português válido (ex.: 912 345 678)."
+    return phone
+
+
+def parish_managers(db):
+    """As 23 freguesias, cada uma com a sua Junta e as contas dos responsáveis."""
+    juntas = {r["parish_code"]: r for r in db.execute(
+        "SELECT id, name, parish_code FROM organizations WHERE kind = 'junta'").fetchall()}
+    people = {}
+    for r in db.execute(
+            """SELECT u.id, u.name, u.email, u.phone, u.sms_alerts, u.active, u.last_login_at, o.parish_code
+                 FROM users u JOIN organizations o ON o.id = u.organization_id
+                WHERE o.kind = 'junta' AND u.role = 'staff' ORDER BY u.active DESC, u.name""").fetchall():
+        people.setdefault(r["parish_code"], []).append(r)
+    open_counts = {r["parish_code"]: r["n"] for r in db.execute(
+        f"""SELECT parish_code, COUNT(*) AS n FROM incidents
+             WHERE deleted_at IS NULL AND status NOT IN ('{RESOLVIDA}', 'Rejeitada', 'Duplicada')
+             GROUP BY parish_code""").fetchall()}
+    rows = []
+    for code, name in sorted(reference.PARISHES, key=lambda p: reference.short_name(p[1])):
+        accounts = people.get(code, [])
+        rows.append({"code": code, "name": reference.short_name(name), "junta": juntas.get(code),
+                     "accounts": accounts, "open": open_counts.get(code, 0),
+                     "covered": any(a["active"] for a in accounts),
+                     "sms": any(a["active"] and a["phone"] and a["sms_alerts"] for a in accounts)})
+    return rows
+
+
+def create_parish_manager(db, form, password_hash_fn):
+    """A conta principal cria o responsável de uma freguesia (conta da Junta, com telemóvel para as SMS)."""
+    name = form.get("name", "").strip()
+    email = form.get("email", "").strip().lower()
+    errors = {}
+    _check_name_email(db, errors, name, email)
+    _check_password(errors, form.get("password", ""), form.get("password", ""))
+    phone = _check_phone(errors, form.get("phone"), required=True)
+    code = form.get("parish_code", "")
+    org = organization_by(db, "junta", code) if code in PARISH_CODES else None
+    if org is None:
+        errors["parish_code"] = "Escolha a freguesia."
+    if errors:
+        raise ValidationError(errors)
+    user_id = create_user(db, name, email, password_hash_fn(form["password"]), role="staff", organization_id=org["id"])
+    with db:
+        db.execute("UPDATE users SET phone = ? WHERE id = ?", (phone, user_id))
+    return user_id
+
+
+def set_manager_phone(db, user_id, form):
+    """A conta principal corrige o telemóvel de um responsável e liga/desliga as SMS."""
+    errors = {}
+    phone = _check_phone(errors, form.get("phone"))
+    if errors:
+        raise ValidationError(errors)
+    with db:
+        db.execute("UPDATE users SET phone = ?, sms_alerts = ? WHERE id = ? AND role = 'staff'",
+                   (phone, form.get("sms_alerts") == "1", user_id))
+
+
+def update_profile(db, user, form, verify_fn):
+    """Nome, email e telemóvel da própria conta. Mudar o email pede a palavra-passe atual."""
+    name = form.get("name", "").strip()
+    email = form.get("email", "").strip().lower()
+    errors = {}
+    if not 2 <= len(name) <= 100:
+        errors["name"] = "Indique o nome (2 a 100 caracteres)."
+    if email != user["email"]:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or len(email) > 120:
+            errors["email"] = "Indique um email válido."
+        elif db.execute("SELECT 1 FROM users WHERE email = ? AND id <> ?", (email, user["id"])).fetchone():
+            errors["email"] = "Já existe uma conta com este email."
+        row = db.execute("SELECT password_hash FROM users WHERE id = ?", (user["id"],)).fetchone()
+        if not verify_fn(row["password_hash"], form.get("current_for_email", "")):
+            errors["current_for_email"] = "Para mudar o email, indique a palavra-passe atual."
+    phone = user["phone"]
+    sms_alerts = user["sms_alerts"]
+    if user["role"] == "staff":
+        phone = _check_phone(errors, form.get("phone"))
+        sms_alerts = form.get("sms_alerts") == "1"
+    if errors:
+        raise ValidationError(errors)
+    with db:
+        db.execute("UPDATE users SET name = ?, email = ?, phone = ?, sms_alerts = ? WHERE id = ?",
+                   (name, email, phone, bool(sms_alerts), user["id"]))
+
+
 def set_user_active(db, actor, user_id, active):
     if user_id == actor["id"]:
         raise ValidationError({"user": "Não pode desativar a sua própria conta."})
@@ -360,21 +456,54 @@ def _notify(db, user_ids, incident_id, kind, message, now, exclude=()):
 
 
 # ------------------------------------------------------------------ Alertas da comunidade
-def _alert_community(db, incident_id, parish_code, category_name, ticket, now, exclude=()):
-    place = db.execute("SELECT short_name FROM parishes WHERE code = ?", (parish_code,)).fetchone() if parish_code else None
-    where = place["short_name"] if place else "no concelho"
-    local = set()
-    if parish_code:
-        local = {r["id"] for r in db.execute(
-            """SELECT u.id FROM users u WHERE u.role = 'citizen' AND u.active = TRUE
-                 AND (u.parish_code = ? OR EXISTS (SELECT 1 FROM user_parishes f WHERE f.user_id = u.id AND f.parish_code = ?))""",
-            (parish_code, parish_code))}
-    others = {r["id"] for r in db.execute(
-        "SELECT id FROM users WHERE role = 'citizen' AND active = TRUE AND alert_scope = 'all'")} - local
-    _notify(db, sorted(local), incident_id, "zone",
-            f"Novo problema na sua freguesia ({where}): {category_name} · {ticket}.", now, exclude=exclude)
-    _notify(db, sorted(others), incident_id, "zone",
-            f"Novo problema em {where}: {category_name} · {ticket}.", now, exclude=exclude)
+def _community_filter(user):
+    """Que ocorrências entram no feed de alertas de um munícipe."""
+    where = ["i.deleted_at IS NULL", "i.author_id != ?", "i.created_at >= ?"]
+    params = [user["id"], user["created_at"]]
+    if user.get("alert_scope", "all") != "all":
+        where.append("""(i.parish_code = ? OR i.parish_code IN
+                         (SELECT f.parish_code FROM user_parishes f WHERE f.user_id = ?))""")
+        params += [user["parish_code"], user["id"]]
+    return " AND ".join(where), params
+
+
+def community_feed(db, user, limit=50):
+    """Alertas de novos problemas na comunidade, calculados na hora (não se guarda uma cópia por pessoa).
+    Cada item diz se é «na sua freguesia» (onde vive ou que segue) e se ainda não foi visto."""
+    if user["role"] != "citizen":
+        return []
+    where, params = _community_filter(user)
+    rows = db.execute(
+        f"""SELECT i.id AS incident_id, i.ticket, i.created_at, i.parish_code, p.short_name AS parish, c.name AS category,
+                   (i.parish_code = ? OR i.parish_code IN (SELECT f.parish_code FROM user_parishes f WHERE f.user_id = ?)) AS mine
+              FROM incidents i JOIN categories c ON c.id = i.category_id LEFT JOIN parishes p ON p.code = i.parish_code
+             WHERE {where} ORDER BY i.created_at DESC, i.id DESC LIMIT ?""",
+        [user["parish_code"], user["id"], *params, limit]).fetchall()
+    seen = user.get("alerts_seen_at")
+    feed = []
+    for r in rows:
+        where_txt = r["parish"] or "no concelho"
+        msg = (f"Novo problema na sua freguesia ({where_txt}): {r['category']} · {r['ticket']}." if r["mine"]
+               else f"Novo problema em {where_txt}: {r['category']} · {r['ticket']}.")
+        feed.append({"incident_id": r["incident_id"], "kind": "zone", "message": msg, "created_at": r["created_at"],
+                     "is_read": bool(seen and r["created_at"] <= seen), "ticket": r["ticket"]})
+    return feed
+
+
+def community_unread(db, user):
+    if user["role"] != "citizen":
+        return 0
+    where, params = _community_filter(user)
+    if user.get("alerts_seen_at"):
+        where += " AND i.created_at > ?"
+        params.append(user["alerts_seen_at"])
+    return db.execute(f"SELECT COUNT(*) FROM (SELECT 1 FROM incidents i WHERE {where} LIMIT 100) t", params).fetchone()[0]
+
+
+def mark_alerts_seen(db, user):
+    with db:
+        db.execute("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", (user["id"],))
+        db.execute("UPDATE users SET alerts_seen_at = ? WHERE id = ?", (utcnow(), user["id"]))
 
 
 def set_alert_scope(db, user, scope):
@@ -558,9 +687,8 @@ def create_incident(db, upload_dir, author, form, files, max_bytes):
             (org["id"], parish_code)).fetchall()]
         _notify(db, staff, incident_id, "assigned", f"Nova ocorrência {ticket}: {category['name']}.", now)
 
-        # Recetores 2: a comunidade (como no Waze). Quem vive ou segue a freguesia recebe «na sua freguesia»;
-        # os restantes munícipes recebem também, salvo se escolheram só as freguesias que seguem.
-        _alert_community(db, incident_id, parish_code, category["name"], ticket, now, exclude={author["id"], *staff})
+        # Recetores 2: a comunidade (como no Waze) — o alerta aparece no feed de cada munícipe (community_feed),
+        # calculado na hora: não se gravam milhares de cópias por ocorrência.
     return incident_id, ticket
 
 

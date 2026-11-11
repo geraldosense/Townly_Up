@@ -1,0 +1,227 @@
+{# Cabeçalho em estilo de aplicação:
+   1.ª linha — logótipo · Comunicar · sino dos alertas · conta
+   2.ª linha — botão «Menu» (abre o painel lateral) + atalhos principais
+   Painel lateral — tudo o resto, organizado por secções. #}
+{% from "_macros.html" import avatar %}
+{% set ep = request.endpoint or '' %}
+{% set is_citizen = g.user and g.user.role == 'citizen' %}
+{% set is_staff = g.user and g.user.role in ('admin', 'staff') %}
+
+<header class="tu-appbar" id="top">
+  <div class="tu-appbar-main">
+    <div class="container tu-appbar-row">
+      <a class="tu-appbar-brand" href="{{ url_for('index') }}" aria-label="Townly Up — início">
+        {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+        <span class="tu-wordmark">Townly <b>Up</b></span>
+      </a>
+
+      <div class="tu-appbar-actions">
+        {% if is_staff %}
+          <a class="tu-appbar-cta" href="{{ url_for('admin_dashboard') }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+            <span>{{ 'Painel municipal' if g.user.role == 'admin' else 'Painel da entidade' }}</span>
+          </a>
+        {% endif %}
+
+        {% if g.user %}
+          <a class="tu-appbar-icon tu-bell {{ 'is-active' if ep == 'notifications_page' }}{{ ' has-unread' if unread_count }}" href="{{ url_for('notifications_page') }}"
+             aria-label="Alertas{{ ' — ' ~ unread_count ~ ' por ler' if unread_count }}" title="Alertas">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <g class="tu-bell-body"><path d="M12 3v1.2"/><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/></g>
+              <g class="tu-bell-clapper"><path d="M10 21a2.2 2.2 0 0 0 4 0"/></g>
+            </svg>
+            {% if unread_count %}<span class="tu-bell-count">{{ unread_count if unread_count < 100 else '99+' }}</span>{% endif %}
+          </a>
+        {% endif %}
+
+        {# Conta: ícone de pessoa (ou fotografia) que abre um painel com as opções #}
+        <div class="tu-account">
+          <button class="tu-appbar-icon tu-account-btn {{ 'is-active' if ep in ('account', 'login', 'register') }}" type="button"
+                  aria-haspopup="true" aria-expanded="false" aria-controls="tu-account-pop" data-account-toggle
+                  title="{{ 'A minha conta' if g.user else 'Entrar ou criar conta' }}" aria-label="{{ 'A minha conta' if g.user else 'Entrar ou criar conta' }}">
+            {% if g.user %}{{ avatar(g.user, 34) }}{% else %}
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="8" r="4"/><path d="M3.5 20.5c.8-3.8 3.8-6 7.5-6 1.4 0 2.7.3 3.8.9"/><path d="m17 16.5 4 4M21 16.5l-4 4"/></svg>
+            {% endif %}
+          </button>
+          <div class="tu-account-pop" id="tu-account-pop" role="dialog" aria-label="Conta" hidden>
+            {% if g.user %}
+              <div class="tu-account-who">
+                {{ avatar(g.user, 44) }}
+                <span class="min-w-0"><b>{{ g.user.name }}</b><small>{{ g.user.email }}</small></span>
+              </div>
+              <p class="tu-account-role">{{ ROLE_LABELS[g.user.role] }}{% if g.user.org_name %} · {{ g.user.org_name }}{% endif %}</p>
+              <div class="tu-account-links">
+                <a href="{{ url_for('account') }}">A minha conta</a>
+                <a href="{{ url_for('notifications_page') }}">Alertas{% if unread_count %} <span class="tu-drawer-count">{{ unread_count }}</span>{% endif %}</a>
+                {% if g.user.role == 'citizen' %}<a href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a>{% endif %}
+                {% if g.user.role == 'admin' %}<a href="{{ url_for('admin_supervision') }}">Supervisão</a><a href="{{ url_for('admin_parishes') }}">Responsáveis por freguesia</a>{% endif %}
+              </div>
+              <form method="post" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="tu-account-btn-outline">Terminar sessão</button>
+              </form>
+            {% else %}
+              <p class="tu-account-title">Bem-vindo!</p>
+              <p class="tu-account-text">Inicie sessão ou crie uma conta para comunicar problemas e receber os alertas da sua freguesia.</p>
+              <div class="tu-account-actions">
+                <a class="tu-account-btn-primary" href="{{ url_for('login') }}">Iniciar sessão</a>
+                <a class="tu-account-btn-outline" href="{{ url_for('register') }}">Criar conta</a>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tu-appbar-sub" aria-label="Atalhos">
+    <div class="container tu-appbar-row">
+      <button class="tu-menu-btn" type="button" aria-controls="tu-drawer" aria-expanded="false" data-drawer-open>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span>
+      </button>
+      <ul class="tu-quick">
+        <li><a class="{{ 'is-active' if ep == 'index' }}" href="{{ url_for('index') }}">Início</a></li>
+        <li><a class="{{ 'is-active' if ep == 'live_map' }}" href="{{ url_for('live_map') }}">Mapa</a></li>
+        {% if is_citizen %}
+          <li><a class="{{ 'is-active' if ep in ('citizen_dashboard', 'incident_detail') }}" href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a></li>
+        {% elif is_staff %}
+          <li><a class="{{ 'is-active' if ep.startswith('admin') and ep not in ('admin_accounts', 'admin_supervision', 'admin_parishes') }}" href="{{ url_for('admin_dashboard') }}">Ocorrências</a></li>
+          {% if g.user.role == 'admin' %}<li><a class="{{ 'is-active' if ep == 'admin_supervision' }}" href="{{ url_for('admin_supervision') }}">Supervisão</a></li>{% endif %}
+        {% endif %}
+        <li><a class="{{ 'is-active' if ep in ('parishes_index', 'parish_page') }}" href="{{ url_for('parishes_index') }}">Freguesias</a></li>
+        <li><a class="{{ 'is-active' if ep == 'how_it_works' }}" href="{{ url_for('how_it_works') }}">Como funciona</a></li>
+        <li><a class="{{ 'is-active' if ep == 'rules' }}" href="{{ url_for('rules') }}">Regras</a></li>
+      </ul>
+    </div>
+  </nav>
+</header>
+
+{# ---------------------------------------------------------------- Painel lateral (menu) #}
+<div class="tu-drawer-backdrop" data-drawer-close hidden></div>
+<aside class="tu-drawer" id="tu-drawer" aria-label="Menu" aria-hidden="true" tabindex="-1">
+  <div class="tu-drawer-head">
+    <a class="tu-drawer-brand" href="{{ url_for('index') }}">{% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}<span class="tu-wordmark">Townly <b>Up</b></span></a>
+    <button class="tu-drawer-close" type="button" data-drawer-close aria-label="Fechar menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+
+  <div class="tu-drawer-tabs" role="tablist">
+    <button type="button" role="tab" aria-selected="true" aria-controls="drawer-explorar" data-drawer-tab="explorar">Explorar</button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="drawer-conta" data-drawer-tab="conta">{{ 'A minha conta' if g.user else 'Conta' }}</button>
+  </div>
+
+  {# ------------------------------------------------ Explorar #}
+  <div class="tu-drawer-pane" id="drawer-explorar" role="tabpanel">
+    {% if is_citizen %}
+      <a class="tu-drawer-promo" href="{{ url_for('new_incident') }}">
+        <b>Comunicar ocorrência</b><span>Fotografe o problema e envie em 3 passos</span>
+      </a>
+    {% elif not g.user %}
+      <a class="tu-drawer-promo" href="{{ url_for('register') }}">
+        <b>Junte-se à comunidade</b><span>Crie conta para comunicar e receber alertas</span>
+      </a>
+    {% endif %}
+    <nav class="tu-drawer-list">
+      <a href="{{ url_for('index') }}" class="{{ 'is-active' if ep == 'index' }}"><span>Início</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('live_map') }}" class="{{ 'is-active' if ep == 'live_map' }}"><span>Mapa de ocorrências</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      {% if is_citizen %}
+      <a href="{{ url_for('citizen_dashboard') }}" class="{{ 'is-active' if ep == 'citizen_dashboard' }}"><span>As minhas ocorrências</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      {% endif %}
+      {% if is_staff %}
+      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'is-active' if ep == 'admin_dashboard' }}"><span>{{ 'Painel municipal' if g.user.role == 'admin' else 'Painel da entidade' }}</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      {% endif %}
+      <a href="{{ url_for('parishes_index') }}" class="{{ 'is-active' if ep in ('parishes_index', 'parish_page') }}"><span>As 23 freguesias</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('ranking') }}" class="{{ 'is-active' if ep == 'ranking' }}"><span>Ranking</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('how_it_works') }}" class="{{ 'is-active' if ep == 'how_it_works' }}"><span>Como funciona</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('rules') }}" class="{{ 'is-active' if ep == 'rules' }}"><span>Regras da comunidade</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('privacy') }}" class="{{ 'is-active' if ep == 'privacy' }}"><span>Privacidade e dados</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+    </nav>
+  </div>
+
+  {# ------------------------------------------------ Conta #}
+  <div class="tu-drawer-pane" id="drawer-conta" role="tabpanel" hidden>
+    {% if g.user %}
+      <a class="tu-drawer-user" href="{{ url_for('account') }}">
+        {{ avatar(g.user, 52) }}
+        <span class="min-w-0"><b>{{ g.user.name }}</b>
+          <small>{{ ROLE_LABELS[g.user.role] }}{% if g.user.org_name %} · {{ g.user.org_name }}{% endif %}</small></span>
+      </a>
+      {% if is_citizen and my_level %}
+        <a class="tu-drawer-level" href="{{ url_for('ranking') }}">
+          <span><b>{{ my_level.name }}</b><small>Nível de participação</small></span>
+          <span class="tu-drawer-level-pts">{{ my_level.points }} pts</span>
+        </a>
+      {% endif %}
+      <nav class="tu-drawer-list">
+      <a href="{{ url_for('notifications_page') }}" class="{{ 'is-active' if ep == 'notifications_page' }}"><span>Alertas</span>{% if unread_count %}<span class="tu-drawer-count">{{ unread_count }}</span>{% endif %}<svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('account') }}" class="{{ 'is-active' if ep == 'account' }}"><span>A minha conta</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+        {% if g.user.role == 'admin' %}
+      <a href="{{ url_for('admin_supervision') }}" class="{{ 'is-active' if ep == 'admin_supervision' }}"><span>Supervisão</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('admin_parishes') }}" class="{{ 'is-active' if ep == 'admin_parishes' }}"><span>Responsáveis por freguesia</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      <a href="{{ url_for('admin_accounts') }}" class="{{ 'is-active' if ep == 'admin_accounts' }}"><span>Contas das entidades</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+        {% endif %}
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="tu-drawer-logout"><span>Terminar sessão</span></button>
+        </form>
+      </nav>
+    {% else %}
+      <div class="tu-drawer-guest">
+        <p>Entre para comunicar problemas, acompanhar os seus pedidos e receber alertas da sua freguesia.</p>
+        <a class="btn btn-primary w-100 mb-2" href="{{ url_for('login') }}">Entrar</a>
+        <a class="btn btn-outline-primary w-100" href="{{ url_for('register') }}">Criar conta</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="tu-drawer-foot">
+    <p><b>Emergências: 112.</b> Este serviço não é para situações urgentes.</p>
+    <p>Projeto académico · Concelho do Fundão</p>
+  </div>
+</aside>
+
+{# Botão flutuante «Comunicar» — sempre à mão, como nas aplicações (só munícipes) #}
+{% if is_citizen and ep not in ('new_incident', 'incident_submitted') %}
+  <a class="tu-report-fab" href="{{ url_for('new_incident') }}" aria-label="Comunicar ocorrência">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    <span>Comunicar ocorrência</span>
+  </a>
+{% endif %}
+
+<script>
+  // Painel da conta: abre por baixo do ícone; fecha ao clicar fora ou com Esc.
+  (function () {
+    const btn = document.querySelector('[data-account-toggle]');
+    const pop = document.getElementById('tu-account-pop');
+    if (!btn || !pop) return;
+    const set = open => { pop.hidden = !open; btn.setAttribute('aria-expanded', String(open)); btn.classList.toggle('is-open', open); };
+    btn.addEventListener('click', e => { e.stopPropagation(); set(pop.hidden); if (!pop.hidden) (pop.querySelector('a, button') || pop).focus(); });
+    document.addEventListener('click', e => { if (!pop.hidden && !pop.contains(e.target)) set(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { set(false); btn.focus(); } });
+  })();
+
+  // Painel lateral: abrir/fechar, Esc, clique fora, foco no painel e devolução do foco ao botão.
+  (function () {
+    const drawer = document.getElementById('tu-drawer');
+    const backdrop = document.querySelector('.tu-drawer-backdrop');
+    const opener = document.querySelector('[data-drawer-open]');
+    function open() {
+      backdrop.hidden = false; drawer.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => { document.body.classList.add('tu-drawer-open'); });
+      opener.setAttribute('aria-expanded', 'true'); drawer.focus();
+    }
+    function close() {
+      document.body.classList.remove('tu-drawer-open'); drawer.setAttribute('aria-hidden', 'true');
+      opener.setAttribute('aria-expanded', 'false');
+      setTimeout(() => { backdrop.hidden = true; }, 250); opener.focus();
+    }
+    opener.addEventListener('click', open);
+    drawer.querySelectorAll('[data-drawer-tab]').forEach(tab => tab.addEventListener('click', () => {
+      drawer.querySelectorAll('[data-drawer-tab]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      drawer.querySelectorAll('.tu-drawer-pane').forEach(p => { p.hidden = p.id !== 'drawer-' + tab.dataset.drawerTab; });
+    }));
+    document.querySelectorAll('[data-drawer-close]').forEach(el => el.addEventListener('click', close));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('tu-drawer-open')) close(); });
+  })();
+</script>

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid %}
+{% block title %}Responsáveis por freguesia{% endblock %}
+{% block content %}
+<div class="tu-page-head">
+  <div>
+    <div class="tu-eyebrow">Conta principal · organização</div>
+    <h1>Responsáveis por freguesia</h1>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('admin_accounts') }}">Todas as contas das entidades</a>
+</div>
+<p class="text-muted" style="max-width: 68ch">Cada freguesia tem um responsável na Junta. Essa conta vê e resolve todas as ocorrências
+  da freguesia e recebe uma <b>SMS</b> no momento em que alguém comunica um problema nessa zona.</p>
+
+<section class="tu-kpis" aria-label="Cobertura">
+  <div class="tu-kpi {{ 'is-alert' if covered < rows|length }}"><dt>Freguesias com responsável</dt><dd>{{ covered }}<span> / {{ rows|length }}</span></dd>
+    <small>{{ 'todas cobertas' if covered == rows|length else (rows|length - covered) ~ ' ainda sem ninguém' }}</small></div>
+  <div class="tu-kpi"><dt>Com SMS ativas</dt><dd>{{ with_sms }}<span> / {{ rows|length }}</span></dd><small>responsável com telemóvel</small></div>
+  <div class="tu-kpi"><dt>Envio de SMS</dt><dd class="tu-kpi-text">{{ 'Brevo' if sms_backend == 'brevo' else 'Modo de teste' }}</dd>
+    <small>{{ 'SMS reais enviadas pela Brevo' if sms_backend == 'brevo' else 'guardadas em instance/sms_outbox (sem custos)' }}</small></div>
+</section>
+
+<div class="row g-4">
+  {# ---------------------------------------------------------------- Novo responsável #}
+  <div class="col-lg-4">
+    <div class="tu-card tu-sticky" id="novo"><div class="card-body">
+      <h2 class="tu-section">Novo responsável</h2>
+      <form method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% set chosen = form.get('parish_code', preselect) %}
+        <div class="mb-3">
+          <label class="form-label" for="parish_code">Freguesia</label>
+          <select class="form-select{{ invalid(errors, 'parish_code') }}" id="parish_code" name="parish_code" required>
+            <option value="">Escolher…</option>
+            {% for r in rows %}
+              <option value="{{ r.code }}" {{ 'selected' if chosen == r.code }}>{{ r.name }}{{ ' ✓' if r.covered }}</option>
+            {% endfor %}
+          </select>
+          {{ field_error(errors, 'parish_code') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="name">Nome do responsável</label>
+          <input class="form-control{{ invalid(errors, 'name') }}" id="name" name="name" value="{{ form.get('name', '') }}" maxlength="100" placeholder="ex.: Junta de Freguesia de Alpedrinha" required>
+          {{ field_error(errors, 'name') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="email">Email (para entrar)</label>
+          <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" maxlength="120" required>
+          {{ field_error(errors, 'email') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="phone">Telemóvel para as SMS</label>
+          <input class="form-control{{ invalid(errors, 'phone') }}" type="tel" inputmode="tel" id="phone" name="phone" value="{{ form.get('phone', '') }}" placeholder="912 345 678" required>
+          {{ field_error(errors, 'phone') }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="password">Palavra-passe temporária</label>
+          <input class="form-control{{ invalid(errors, 'password') }}" type="text" id="password" name="password" autocomplete="off" required>
+          {{ field_error(errors, 'password') }}
+          <div class="form-text">8+ caracteres, com letras e números. A pessoa muda-a depois em «A minha conta».</div>
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Criar responsável</button>
+      </form>
+
+      <div class="tu-sms-preview" aria-label="Exemplo de SMS">
+        <div class="tu-sms-from">TownlyUp</div>
+        <div class="tu-sms-bubble">Townly Up: nova ocorrencia TU-2026-0042 em Alpedrinha. Iluminacao publica - Candeeiro apagado na Rua Direita. Ver: townlyup.pt/admin/incidents/42</div>
+        <small>Exemplo da SMS que o responsável recebe (uma só mensagem, até 160 caracteres).</small>
+      </div>
+    </div></div>
+  </div>
+
+  {# ---------------------------------------------------------------- As 23 freguesias #}
+  <div class="col-lg-8">
+    <ul class="tu-parish-admin">
+      {% for r in rows %}
+      <li id="f-{{ r.code }}" class="{{ 'is-covered' if r.covered else 'is-missing' }}">
+        <div class="tu-parish-admin-head">
+          <div>
+            <h3>{{ r.name }}</h3>
+            <span class="small text-muted">{{ r.open }} {{ 'ocorrência em curso' if r.open == 1 else 'ocorrências em curso' }}</span>
+          </div>
+          {% if r.sms %}<span class="tu-chip is-ok">Responsável · SMS ativas</span>
+          {% elif r.covered %}<span class="tu-chip is-warn">Responsável · sem telemóvel</span>
+          {% else %}<a class="tu-chip is-missing" href="{{ url_for('admin_parishes', freguesia=r.code) }}#novo">Sem responsável · criar</a>{% endif %}
+        </div>
+        {% for a in r.accounts %}
+        <div class="tu-parish-admin-person {{ 'is-off' if not a.active }}">
+          <div class="tu-parish-admin-who">
+            <b>{{ a.name }}</b>{% if not a.active %} <span class="small text-muted">(desativada)</span>{% endif %}
+            <span class="small text-muted d-block">{{ a.email }} · último acesso {{ a.last_login_at|local('%d/%m/%Y') if a.last_login_at else 'nunca' }}</span>
+          </div>
+          <form method="post" action="{{ url_for('admin_parish_phone', user_id=a.id) }}" class="tu-parish-admin-phone">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input class="form-control form-control-sm" type="tel" inputmode="tel" name="phone" value="{{ pretty_phone(a.phone) }}" placeholder="Telemóvel" aria-label="Telemóvel de {{ a.name }}">
+            <div class="form-check form-switch mb-0" title="Receber SMS">
+              <input class="form-check-input" type="checkbox" role="switch" name="sms_alerts" value="1" id="sms-{{ a.id }}" {{ 'checked' if a.sms_alerts }}>
+              <label class="form-check-label small" for="sms-{{ a.id }}">SMS</label>
+            </div>
+            <button class="btn btn-sm btn-outline-primary" type="submit">Guardar</button>
+          </form>
+        </div>
+        {% endfor %}
+        {% if r.accounts %}
+          <a class="tu-parish-admin-add" href="{{ url_for('admin_parishes', freguesia=r.code) }}#novo">+ Adicionar outro responsável</a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

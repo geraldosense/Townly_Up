@@ -43,9 +43,6 @@
     <div class="tu-map-legend d-none d-sm-block"><i class="bi bi-people-fill text-danger"></i> nº de munícipes que viram o problema</div>
     <div class="tu-fab">
       <button type="button" class="tu-fab-locate" id="locate" title="Perto de mim" aria-label="Mostrar ocorrências perto de mim"><i class="bi bi-crosshair fs-5"></i></button>
-      {% if g.user and g.user.role == 'citizen' %}
-        <a class="btn btn-primary btn-lg" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
-      {% endif %}
     </div>
   </section>
 </div>

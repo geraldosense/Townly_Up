@@ -113,7 +113,7 @@ Registada → Em análise → Em tratamento → Resolvida
 ## Testes de aceitação
 
 `python -m pytest -v` cobre TA01–TA08, segurança, comunidade, entidades e restrições da base de dados
-(100 testes). Com `TEST_DATABASE_URL=postgresql://…` os mesmos testes correm em PostgreSQL.
+(102 testes). Com `TEST_DATABASE_URL=postgresql://…` os mesmos testes correm em PostgreSQL.
 TA08 (smartphone) deve também ser confirmado manualmente no telemóvel ou nas
 ferramentas de programador do navegador.
 
@@ -241,3 +241,18 @@ O envio corre em segundo plano: a página não espera e, se falhar, a ocorrênci
   (`incidents.deleted_at`), como exige o caderno de encargos (RF10/RF11).
 - **Alertas da comunidade**: cada novo problema gera um alerta para todos os munícipes («na sua freguesia» para
   quem lá vive ou a segue). Em «Alertas» cada pessoa pode escolher só as freguesias que acompanha (`users.alert_scope`).
+
+## Contas de teste e supervisão
+
+`flask --app app contas-teste` cria 30 contas **só para testes** (domínio reservado `@townlyup.test`, palavra-passe
+`TownlyTeste2026` — mude com `--password`): `supervisao@townlyup.test` (Câmara, vê o painel **Supervisão**),
+uma por Junta (`junta.alpedrinha@townlyup.test`, …) e uma por serviço (`obras-municipais@townlyup.test`, …).
+`flask --app app contas-teste --remover` desativa-as todas. Não as crie no site público.
+
+**Supervisão** (`/admin/supervisao`, só a Câmara): pedidos em curso e resolvidos, tempo médio até à 1.ª resposta e até
+resolver, pedidos sem resposta há 7+ dias, desempenho por entidade, freguesias, tipos de problema, atividade recente e moderação.
+
+**Escala** (teste com PostgreSQL 16, 10 000 munícipes e 2 000 ocorrências): criar uma ocorrência ≈ 9 ms; mapa público
+≈ 130 ms; painel ≈ 100 ms; alertas de uma pessoa ≈ 4 ms; base de dados ≈ 14 MB sem fotografias. Os alertas da comunidade
+são calculados na hora (feed), não se guarda uma cópia por pessoa. O limite prático no plano gratuito do Neon (1 GB) são as
+fotografias (≈ 150–300 KB cada): para milhares de fotografias, passar para um armazenamento de ficheiros (ex.: Cloudflare R2).

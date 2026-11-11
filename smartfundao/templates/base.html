@@ -25,65 +25,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100 {% block body_class %}{% endblock %}">
   {% block header %}
-  <div class="tu-topbar">
-    <div class="container d-flex justify-content-between gap-3 py-1">
-      <span>Projeto académico · Concelho do Fundão, Castelo Branco</span>
-    </div>
-  </div>
-  <nav class="navbar navbar-expand-lg tu-navbar sticky-top">
-    <div class="container">
-      <a class="navbar-brand tu-brand" href="{{ url_for('index') }}">
-        {% include "_logo.html" %}
-        <span class="tu-wordmark">Townly <b>Up</b></span>
-      </a>
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Abrir menu">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="nav">
-        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
-          {% set ep = request.endpoint or '' %}
-          <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'live_map' }}" href="{{ url_for('live_map') }}">Mapa</a></li>
-          {% if g.user and g.user.role == 'citizen' %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if ep in ['citizen_dashboard', 'incident_detail'] }}" href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a></li>
-            {% if my_level %}<li class="nav-item"><a class="tu-points-chip" href="{{ url_for('ranking') }}" title="{{ my_level.name }}"><i class="bi bi-{{ my_level.icon }}"></i> <span id="my-points">{{ my_level.points }}</span> pts</a></li>{% endif %}
-            <li class="nav-item"><a class="btn btn-primary my-2 my-lg-0 ms-lg-2" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a></li>
-          {% elif g.user %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if ep.startswith('admin') }}" href="{{ url_for('admin_dashboard') }}">{{ 'Painel municipal' if g.user.role == 'admin' else 'Painel da entidade' }}</a></li>
-          {% endif %}
-          {% if g.user %}
-            <li class="nav-item">
-              <a class="nav-link tu-bell {{ 'active' if ep == 'notifications_page' }}{{ ' has-unread' if unread_count }}" href="{{ url_for('notifications_page') }}"
-                 aria-label="Alertas{{ ' — ' ~ unread_count ~ ' por ler' if unread_count }}" title="Alertas">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg>
-                {% if unread_count %}<span class="tu-bell-count">{{ unread_count if unread_count < 100 else '99+' }}</span>{% endif %}
-                <span class="tu-bell-label">Alertas</span>
-              </a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                {{ avatar(g.user, 30) }}<span>{{ g.user.name.split()[0] }}</span>
-              </a>
-              <div class="dropdown-menu dropdown-menu-end shadow-sm">
-                <span class="dropdown-item-text small"><b>{{ g.user.name }}</b><br><span class="text-muted">{{ g.user.email }}</span><br>
-                  <span class="badge {{ 'text-bg-success' if g.user.role == 'citizen' else 'text-bg-primary' }} mt-1">{{ ROLE_LABELS[g.user.role] }}</span>
-                  {% if g.user.org_name %}<br><span class="text-muted">{{ g.user.org_name }}</span>{% endif %}</span>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="{{ url_for('account') }}"><i class="bi bi-person-gear"></i> A minha conta</a>
-                {% if g.user.role == 'admin' %}<a class="dropdown-item" href="{{ url_for('admin_accounts') }}"><i class="bi bi-people"></i> Contas das entidades</a>{% endif %}
-                <form method="post" action="{{ url_for('logout') }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="dropdown-item" type="submit"><i class="bi bi-box-arrow-right"></i> Terminar sessão</button>
-                </form>
-              </div>
-            </li>
-          {% else %}
-            <li class="nav-item"><a class="nav-link {{ 'active' if ep == 'login' }}" href="{{ url_for('login') }}">Entrar</a></li>
-            <li class="nav-item"><a class="btn btn-primary ms-lg-2" href="{{ url_for('register') }}">Criar conta</a></li>
-          {% endif %}
-        </ul>
-      </div>
-    </div>
-  </nav>
+  {% include "_header.html" %}
   {% endblock %}
 
   <main class="flex-grow-1 {% block main_class %}py-4 py-md-5{% endblock %}">

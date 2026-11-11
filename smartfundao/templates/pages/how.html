@@ -1,39 +1,68 @@
 {% extends "base.html" %}
 {% block title %}Como funciona{% endblock %}
 {% block content %}
-<article class="tu-prose">
-  <div class="tu-eyebrow">Guia</div>
-  <h1>Como funciona o Townly Up</h1>
-  <p class="tu-prose-lede">Do buraco na estrada ao candeeiro apagado: qualquer pessoa do concelho pode comunicar um problema no espaço público e acompanhar o que acontece a seguir.</p>
+<article class="tu-how">
+  <header class="tu-how-intro">
+    <div class="tu-eyebrow">Guia</div>
+    <h1>Como funciona o Townly Up</h1>
+    <p>Do buraco na estrada ao candeeiro apagado: qualquer pessoa do concelho pode comunicar um problema no espaço público e acompanhar o que acontece a seguir — em três passos.</p>
+  </header>
 
-  <ol class="tu-steps-list">
-    <li><h2>Comunique</h2><p>Escolha o tipo de problema, tire uma fotografia e marque o local no mapa. Recebe um número de referência, por exemplo <span class="tu-item-code">TU-2026-0042</span>.</p></li>
-    <li><h2>Chega à entidade certa</h2><p>O pedido é encaminhado automaticamente: para o serviço técnico da categoria (obras, iluminação, limpeza…) ou para a Junta da freguesia onde fica o problema. A Câmara acompanha tudo.</p></li>
-    <li><h2>Acompanhe</h2><p>Cada mudança — em análise, em tratamento, resolvida — fica registada com data e observação, e recebe um alerta. Quando é resolvido, pode ver a fotografia da intervenção.</p></li>
-  </ol>
+  {% set steps = [
+    ('1-comunicar.svg', '01', 'Comunique', 'Escolha o tipo de problema, tire uma fotografia e marque o local no mapa. Recebe logo um número de referência — por exemplo TU-2026-0042 — no ecrã e por email.',
+      ['Fotografia tirada na hora ou da galeria', 'Localização pelo GPS do telemóvel', 'Dados de localização da foto removidos']),
+    ('2-encaminhar.svg', '02', 'Chega à entidade certa', 'O pedido é encaminhado automaticamente: para o serviço técnico da categoria (obras, iluminação, limpeza…) ou para a Junta da freguesia onde fica o problema. A Câmara acompanha tudo e reencaminha quando é preciso.',
+      ['Freguesia calculada pelos limites oficiais (CAOP)', 'Quem segue a freguesia recebe um alerta']),
+    ('3-acompanhar.svg', '03', 'Acompanhe até ao fim', 'Cada mudança — em análise, em tratamento, resolvida — fica registada com data e observação, e recebe um alerta no sino. O histórico nunca é apagado.',
+      ['Linha temporal pública para o autor', 'Alertas na aplicação']),
+  ] %}
+  {% for img, n, title, text, points in steps %}
+    <section class="tu-how-step {{ 'is-reverse' if loop.index is even }}">
+      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/' ~ img) }}" alt="" loading="lazy" width="480" height="320"></figure>
+      <div class="tu-how-text">
+        <span class="tu-how-num">{{ n }}</span>
+        <h2>{{ title }}</h2>
+        <p>{{ text }}</p>
+        <ul>{% for p in points %}<li>{{ p }}</li>{% endfor %}</ul>
+      </div>
+    </section>
+  {% endfor %}
 
-  <h2>Evitar repetições</h2>
-  <p>Antes de enviar, o sistema compara o seu pedido com os que já existem por perto (local, tipo de problema, descrição e fotografia). Se alguém já comunicou o mesmo, basta carregar em «Eu também vi» — o pedido ganha força sem criar trabalho em duplicado.</p>
+  <section class="tu-how-pair">
+    <div class="tu-how-card">
+      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/4-repetidos.svg') }}" alt="" loading="lazy" width="480" height="320"></figure>
+      <h2>Sem pedidos repetidos</h2>
+      <p>Antes de enviar, o sistema compara o pedido com os que já existem por perto — local, tipo de problema, descrição e fotografia. Se alguém já comunicou o mesmo, basta carregar em «Eu também vi»: o pedido ganha força sem criar trabalho em duplicado.</p>
+    </div>
+    <div class="tu-how-card">
+      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/5-resolvida.svg') }}" alt="" loading="lazy" width="480" height="320"></figure>
+      <h2>Resolvido — e reconhecido</h2>
+      <p>Quando o problema é resolvido, vê a nota e a fotografia da intervenção. Quem participa ganha pontos e sobe de nível: não valem dinheiro, servem para reconhecer quem ajuda a cuidar do concelho.</p>
+    </div>
+  </section>
 
-  <h2>Participação</h2>
-  <p>Quem participa ganha pontos e sobe de nível. Os pontos não têm valor monetário: servem para reconhecer quem ajuda a cuidar do concelho.</p>
-  <table class="table tu-table small" style="max-width: 460px">
-    <tbody>
-      <tr><td>Comunicar uma ocorrência</td><td class="text-end fw-semibold">+{{ points.report }}</td></tr>
-      <tr><td>«Eu também vi»</td><td class="text-end fw-semibold">+{{ points.confirm_seen }}</td></tr>
-      <tr><td>Indicar que já foi resolvido</td><td class="text-end fw-semibold">+{{ points.confirm_fixed }}</td></tr>
-      <tr><td>A sua ocorrência foi resolvida</td><td class="text-end fw-semibold">+{{ points.resolved }}</td></tr>
-    </tbody>
-  </table>
+  <section class="tu-how-points">
+    <h2>Pontos de participação</h2>
+    <dl>
+      <div><dt>+{{ points.report }}</dt><dd>Comunicar uma ocorrência</dd></div>
+      <div><dt>+{{ points.confirm_seen }}</dt><dd>«Eu também vi»</dd></div>
+      <div><dt>+{{ points.confirm_fixed }}</dt><dd>Indicar que já foi resolvido</dd></div>
+      <div><dt>+{{ points.resolved }}</dt><dd>A sua ocorrência foi resolvida</dd></div>
+    </dl>
+  </section>
 
-  <h2 id="quem">Quem recebe os pedidos</h2>
-  <p><b>Munícipes</b> comunicam e acompanham. <b>Juntas de Freguesia</b> e <b>serviços técnicos</b> tratam os pedidos da sua área. A <b>Câmara Municipal</b> vê tudo e reencaminha quando é preciso.</p>
+  <section class="tu-how-who" id="quem">
+    <h2>Quem recebe os pedidos</h2>
+    <div class="tu-how-who-grid">
+      <div><b>Munícipes</b><p>Comunicam, confirmam o que outros viram e recebem alertas.</p></div>
+      <div><b>Juntas e serviços técnicos</b><p>Tratam os pedidos da sua freguesia ou da sua área.</p></div>
+      <div><b>Câmara Municipal</b><p>Vê tudo, define prioridades e reencaminha quando é preciso.</p></div>
+    </div>
+  </section>
 
-  <div class="tu-callout">
-    <b>Emergências:</b> este serviço não é para situações urgentes. Em caso de perigo para pessoas ou bens, ligue <b>112</b>.
-  </div>
+  <div class="tu-callout"><b>Emergências:</b> este serviço não é para situações urgentes. Em caso de perigo para pessoas ou bens, ligue <b>112</b>.</div>
   <div class="d-flex flex-wrap gap-3 mt-4">
-    <a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+    {% if not g.user or g.user.role == 'citizen' %}<a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>{% endif %}
     <a class="tu-link-arrow align-self-center" href="{{ url_for('rules') }}">Regras da comunidade →</a>
   </div>
 </article>

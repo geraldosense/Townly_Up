@@ -4,6 +4,7 @@ São inseridos de forma idempotente (ON CONFLICT DO NOTHING) sempre que a base d
 """
 import json
 import os
+import re
 
 # 23 freguesias do concelho do Fundão — código DICOFRE e nome oficial (CAOP 2022, DGT).
 PARISHES = (
@@ -105,3 +106,11 @@ def seed(db):
                 "INSERT INTO categories (name, default_service) VALUES (?, ?) ON CONFLICT (name) DO NOTHING",
                 (name, service),
             )
+
+
+def sms_parish(code):
+    """Nome curto da freguesia para as SMS: «Alpedrinha»; nas uniões só a 1.ª localidade («UF Fundão»)."""
+    name = dict(PARISHES).get(code, "")
+    if name.startswith("União das freguesias de "):
+        return "UF " + re.split(r",| e ", short_name(name))[0]
+    return name or "concelho do Fundão"
