@@ -8,19 +8,23 @@
 
   <h2>Que dados guardamos</h2>
   <ul>
-    <li><b>Conta:</b> nome, email, freguesia (se a indicar) e as freguesias que segue. A palavra-passe é guardada cifrada (nunca em texto).</li>
+    <li><b>Conta:</b> nome, email, distrito e concelho, freguesia (se a indicar) e as freguesias que segue. A palavra-passe é guardada cifrada (nunca em texto).</li>
     <li><b>Ocorrências:</b> tipo de problema, descrição, local, fotografias e o histórico de estados.</li>
+    <li><b>Segurança:</b> avisos formais por linguagem ofensiva ou imagens recusadas (data, tipo e motivo). Só o próprio e a Câmara os veem; servem para aplicar a regra «aviso → banimento».</li>
   </ul>
 
   <h2>Quem vê o quê</h2>
   <ul>
-    <li><b>Público (mapa):</b> só o tipo de problema, o estado, a freguesia e o local aproximado. Sem nomes, descrições nem fotografias.</li>
-    <li><b>Fotografias e descrição:</b> só o autor e a entidade que trata o pedido (Junta, serviço técnico ou Câmara).</li>
+    <li><b>Público (mapa e página inicial):</b> o tipo de problema, o estado, a freguesia, o local aproximado e a 1.ª fotografia do problema (reduzida, sem metadados) e, quando resolvida, a fotografia da intervenção em «Antes e depois». Sem nomes nem descrições.</li>
+    <li><b>Restantes fotografias e descrição:</b> só o autor e a entidade que trata o pedido (Junta, serviço técnico ou Câmara).</li>
     <li><b>Ranking:</b> mostra o nome e os pontos de quem participa.</li>
   </ul>
 
   <h2>Fotografias</h2>
   <p>Ao enviar uma fotografia, removemos automaticamente os metadados (incluindo as coordenadas GPS e o modelo do telemóvel). Quando a verificação automática está ativa, as fotografias são analisadas por um serviço de inteligência artificial apenas para recusar conteúdo impróprio ou sem relação com o espaço público.</p>
+
+  <h2>Idiomas</h2>
+  <p>A aplicação está escrita em português. Se escolher outro idioma no menu (espanhol, inglês, francês, alemão ou mandarim), o texto das páginas é traduzido automaticamente pelo serviço Google Tradutor, que recebe esse texto para o traduzir. Em português nada é enviado.</p>
 
   <h2>Para que usamos os dados</h2>
   <p>Apenas para encaminhar e acompanhar os pedidos, enviar os alertas que escolheu e manter o serviço seguro. Não vendemos dados nem mostramos publicidade.</p>
@@ -28,6 +32,6 @@
   <h2>Os seus direitos</h2>
   <p>Pode consultar e corrigir os seus dados, mudar a palavra-passe em «A minha conta» e pedir a eliminação da conta{% if contact_email %} escrevendo para <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% else %} à equipa do projeto{% endif %}.</p>
 
-  <p class="small text-muted mt-4">Projeto académico (Prova de Aptidão Profissional). Não é um serviço oficial da Câmara Municipal do Fundão.</p>
+  <p class="small text-muted mt-4 tu-page-foot">Projeto académico (Prova de Aptidão Profissional). Não é um serviço oficial da Câmara Municipal do Fundão.</p>
 </article>
 {% endblock %}

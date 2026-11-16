@@ -138,7 +138,7 @@ def test_quem_segue_a_freguesia_recebe_alerta(client, app):
 
 def test_registo_segue_a_propria_freguesia(client, app):
     client.post("/register", data={"name": "Rita", "email": "rita@teste.pt", "password": "Segura123",
-                                   "confirm": "Segura123", "terms": "1", "parish": ALPEDRINHA})
+                                   "confirm": "Segura123", "terms": "1", "parish": ALPEDRINHA, "district": "Castelo Branco", "municipality": "Fundão"})
     with app.app_context():
         uid = get_db().execute("SELECT id FROM users WHERE email = 'rita@teste.pt'").fetchone()[0]
         assert sv.followed_parishes(get_db(), uid) == [ALPEDRINHA]
@@ -158,8 +158,9 @@ def test_quem_confirmou_acompanha_a_evolucao(client, app):
 
 def test_pagina_de_alertas(client, app):
     login(client, "ana@teste.pt")
-    html = client.get("/alertas").get_data(as_text=True)
-    assert "Alpedrinha" in html and 'name="parish"' in html
+    assert client.get("/alertas").status_code == 200
+    html = client.get("/definicoes").get_data(as_text=True)            # alcance dos alertas fica nas Definições
+    assert 'name="scope"' in html and "Só as freguesias que acompanho" in html
     assert client.post("/alertas/lidas").status_code == 302
 
 

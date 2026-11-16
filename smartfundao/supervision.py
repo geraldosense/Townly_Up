@@ -43,6 +43,7 @@ def overview(db):
     resolution = _avg_days([(_dt(i["created_at"]), _dt(i["resolved_at"])) for i in incidents if i["status"] == sv.RESOLVIDA])
     response = _avg_days([(_dt(i["created_at"]), first.get(i["id"])) for i in incidents if i["id"] in first])
     stale = [i for i in incidents if i["status"] == sv.REGISTADA and _dt(i["created_at"]) < stale_limit]
+    stale_ids = {i["id"] for i in stale}
 
     by_org = {}
     for i in incidents:
@@ -53,7 +54,7 @@ def overview(db):
         if i["status"] == sv.RESOLVIDA:
             o["resolved"] += 1
             o["pairs"].append((_dt(i["created_at"]), _dt(i["resolved_at"])))
-        if i in stale:
+        if i["id"] in stale_ids:
             o["stale"] += 1
     orgs = sorted(({**o, "avg": _avg_days(o.pop("pairs"))} for o in by_org.values()),
                   key=lambda o: (-o["active"], o["name"]))
@@ -83,4 +84,6 @@ def overview(db):
         "citizens": users.get("citizen", 0), "staff": users.get("staff", 0) + users.get("admin", 0),
         "new_users": new_users, "new_incidents": new_incidents, "activity": activity,
         "moderation": moderation, "suspended": suspended, "deleted": deleted,
+        "satisfaction": sv.satisfaction(db),
+        "reopened": db.execute("SELECT COUNT(*) FROM resolution_ratings WHERE reopened = TRUE").fetchone()[0],
     }

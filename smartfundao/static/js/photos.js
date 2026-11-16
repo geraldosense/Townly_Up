@@ -58,6 +58,70 @@
     return true;
   }
 
+  // Prepara qualquer fotografia do telemóvel antes de a juntar:
+  //  • abre também HEIC/HEIF (iPhone) e fotografias enormes (12–48 MP, 5–15 MB);
+  //  • endireita-a conforme o telemóvel estava (EXIF);
+  //  • reduz para 1920 px no lado maior e grava em JPEG (~300–800 KB) — envio rápido mesmo com rede fraca.
+  const MAX_SIDE = 1920;
+  function decode(file) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => decodeImg(file));
+    }
+    return decodeImg(file);
+  }
+  function decodeImg(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('formato')); };
+      img.src = url;
+    });
+  }
+  function toBlob(canvas, q) { return new Promise(r => canvas.toBlob(r, 'image/jpeg', q)); }
+  async function prepare(file) {
+    const looksImage = (file.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(file.name || '');
+    if (!looksImage) throw new Error('tipo');
+    const src = await decode(file);
+    const w = src.width || src.naturalWidth, h = src.height || src.naturalHeight;
+    if (!w || !h) throw new Error('formato');
+    const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);   // PNG transparente → fundo branco
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    if (src.close) src.close();
+    let blob = await toBlob(canvas, 0.85);
+    if (blob && blob.size > MAX_BYTES) blob = await toBlob(canvas, 0.7);
+    if (!blob) throw new Error('formato');
+    const base = (file.name || 'foto').replace(/\.[^.]+$/, '') || 'foto';
+    return new File([blob], base + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+  }
+
+  // Junta as fotografias escolhidas (galeria ou câmara do telemóvel), uma a uma, com indicação de progresso.
+  let busy = false;
+  async function addMany(files, source) {
+    if (busy) return;
+    busy = true;
+    const list = Array.from(files).slice(0, Math.max(0, MAX - photos.length));
+    if (files.length > list.length) Townly.toast(`Máximo de ${MAX} fotografias.`);
+    preview.classList.add('is-busy');
+    actions.classList.add('is-busy');
+    for (const f of list) {
+      try {
+        add(await prepare(f), source);
+      } catch (e) {
+        Townly.toast(e.message === 'tipo' ? 'Escolha uma fotografia (imagem).'
+          : 'Não foi possível abrir essa fotografia neste telemóvel. Tire-a com o botão «Tirar fotografia».');
+      }
+      sync();
+    }
+    preview.classList.remove('is-busy');
+    actions.classList.remove('is-busy');
+    busy = false;
+  }
+
   function render() {
     preview.replaceChildren(...photos.map((p, index) => {
       const item = document.createElement('div');
@@ -84,15 +148,15 @@
   }
 
   gallery.addEventListener('change', () => {
-    Array.from(gallery.files).forEach(f => add(f, 'galeria'));
+    const files = Array.from(gallery.files);
     gallery.value = '';
-    sync();
+    addMany(files, 'galeria');
   });
 
   nativeCam.addEventListener('change', () => {
-    Array.from(nativeCam.files).forEach(f => add(f, 'camera'));
+    const files = Array.from(nativeCam.files);
     nativeCam.value = '';
-    sync();
+    addMany(files, 'camera');
   });
 
   // ------------------------------------------------------------ câmara

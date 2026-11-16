@@ -28,6 +28,7 @@ def app(tmp_path, database_config):
         "TESTING": True,
         "CSRF_ENABLED": False,
         "UPLOAD_FOLDER": str(tmp_path / "uploads"),
+        "GEO_CACHE_DIR": str(tmp_path),            # limites descarregados nos testes não vão para instance/
         **database_config,
     })
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -37,6 +38,9 @@ def app(tmp_path, database_config):
         sv.create_user(db, "Ana", "ana@teste.pt", hash_password(PASSWORD))
         sv.create_user(db, "Carlos", "carlos@teste.pt", hash_password(PASSWORD))
         sv.create_user(db, "Rui", "rui@teste.pt", hash_password(PASSWORD), role="admin",
+                       organization_id=sv.organization_by(db, "camara")["id"])
+        # a conta da Câmara Municipal do Fundão (é ela que ativa o concelho e trata as ocorrências)
+        sv.create_user(db, "Câmara do Fundão", "camara@teste.pt", hash_password(PASSWORD), role="staff",
                        organization_id=sv.organization_by(db, "camara")["id"])
     yield app
     with app.app_context():
@@ -107,7 +111,7 @@ def test_login_certo_e_errado(client):
 def test_registo_cria_sempre_municipe(client, app):
     resp = client.post("/register", data={
         "name": "Hacker", "email": "novo@teste.pt", "password": "Segura123",
-        "confirm": "Segura123", "terms": "1", "role": "admin"})
+        "confirm": "Segura123", "terms": "1", "role": "admin", "district": "Castelo Branco", "municipality": "Fundão"})
     assert resp.status_code == 302
     with app.app_context():
         user = get_db().execute("SELECT role, password_hash FROM users WHERE email = 'novo@teste.pt'").fetchone()

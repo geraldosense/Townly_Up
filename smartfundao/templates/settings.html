@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, invalid, reveal %}
+{% block title %}Definições{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+{% block content %}
+{# Definições no mesmo estilo do menu: secções com título cinzento e linhas com ícone, nome e valor/seta. #}
+{% set chev = '<svg class="tu-s-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' %}
+{% set check = '<svg class="tu-s-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' %}
+<div class="tu-s">
+  <header class="tu-s-head">
+    <p>{{ g.user.name if g.user else 'Neste aparelho' }}</p>
+    <h1>Definições</h1>
+  </header>
+
+  {% if g.user and g.user.role == 'citizen' %}
+  {# ================================================================ Concelho #}
+  <section id="concelho">
+    <h2 class="tu-s-sec">O meu concelho</h2>
+    <form method="post" action="{{ url_for('change_territory') }}" class="tu-s-list" id="territory-pick" data-active='{{ territory.active|tojson }}'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ url_for('settings') }}#concelho">
+      <label class="tu-s-row tu-s-select" for="district">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+        <span>Distrito</span>
+        <select id="district" name="district" required>
+          {% for d in territory.districts %}<option value="{{ d }}" {{ 'selected' if g.user.district == d }}>{{ d }}</option>{% endfor %}
+        </select>{{ chev|safe }}
+      </label>
+      <label class="tu-s-row tu-s-select" for="municipality">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M3.5 20.5h17M5 20.5v-9M19 20.5v-9M9.5 20.5v-9M14.5 20.5v-9M2.5 10 12 4l9.5 6z"/></svg>
+        <span>Concelho</span>
+        <select id="municipality" name="municipality" required data-selected="{{ g.user.municipality or '' }}"></select>{{ chev|safe }}
+      </label>
+      <label class="tu-s-row tu-s-select" for="parish" id="parish-wrap">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+        <span>Freguesia</span>
+        <select id="parish" name="parish" data-selected="{{ g.user.home_parish or g.user.parish_code or '' }}"></select>{{ chev|safe }}
+      </label>
+      {% set on = g.user.municipality in territory.active %}
+      <p class="tu-s-note{{ '' if on else ' is-off' }}" id="territory-note">
+        {% if on %}✓ O Townly Up está ativo no concelho de {{ g.user.municipality }}.
+        {% else %}Ainda não disponível no seu concelho ({{ g.user.municipality or '—' }}). Quando a Câmara aderir, passa a poder comunicar.{% endif %}
+      </p>
+      <div class="tu-s-actions"><button class="tu-s-btn" type="submit">Guardar concelho e freguesia</button></div>
+    </form>
+    <script type="application/json" id="territory-data">{{ territory.districts|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/territory.js') }}?v={{ asset_version }}"></script>
+    <script>
+      TownlyTerritory.bind({
+        district: document.getElementById('district'), municipality: document.getElementById('municipality'),
+        parish: document.getElementById('parish'), note: document.getElementById('territory-note'),
+        data: JSON.parse(document.getElementById('territory-data').textContent),
+        active: JSON.parse(document.getElementById('territory-pick').dataset.active),
+      });
+    </script>
+  </section>
+  {% endif %}
+
+  {# ================================================================ Notificações #}
+  <section id="notificacoes">
+    <h2 class="tu-s-sec">Notificações</h2>
+    {% if not g.user %}
+      <div class="tu-s-list">
+        <a class="tu-s-row" href="{{ url_for('login', next=url_for('settings')) }}">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg>
+          <span><b>Entre para escolher os seus alertas</b><small>Os alertas e os emails estão ligados à sua conta.</small></span>{{ chev|safe }}
+        </a>
+      </div>
+    {% else %}
+      {% if g.user.role == 'citizen' %}
+        <p class="tu-s-sub">Alertas de novos problemas</p>
+        <form method="post" action="{{ url_for('notifications_scope') }}" class="tu-s-list">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="tu-s-row tu-s-radio">
+            <svg class="tu-s-ico" {{ ico|safe }}><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+            <span><b>Todo o concelho</b><small>Um alerta por cada problema em qualquer freguesia.</small></span>
+            <input type="radio" name="scope" value="all" {{ 'checked' if scope == 'all' }} onchange="this.form.submit()">{{ check|safe }}
+          </label>
+          <label class="tu-s-row tu-s-radio">
+            <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+            <span><b>Só as freguesias que acompanho</b><small>A sua freguesia e as que seguir.</small></span>
+            <input type="radio" name="scope" value="followed" {{ 'checked' if scope == 'followed' }} onchange="this.form.submit()">{{ check|safe }}
+          </label>
+          <noscript><div class="tu-s-actions"><button class="tu-s-btn" type="submit">Guardar</button></div></noscript>
+        </form>
+      {% endif %}
+
+      {% if g.user.role in ('citizen', 'staff') %}
+      <form method="post" action="{{ url_for('settings_notifications') }}" class="tu-s-list">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if g.user.role == 'citizen' %}
+        <label class="tu-s-row tu-s-toggle">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+          <span><b>Comprovativo por email</b><small>O número de referência chega a {{ g.user.email }}.</small></span>
+          <input type="checkbox" role="switch" name="email_receipts" value="1" {{ 'checked' if g.user.email_receipts }}><i class="tu-s-switch" aria-hidden="true"></i>
+        </label>
+        {% else %}<input type="hidden" name="email_receipts" value="{{ '1' if g.user.email_receipts }}">{% endif %}
+        {% if g.user.role == 'staff' %}
+        <label class="tu-s-row tu-s-input" for="s-phone">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 17.5h2"/></svg>
+          <span><b>Telemóvel para as SMS</b><small>{% if g.user.org_kind == 'junta' %}Uma SMS por cada problema novo na sua freguesia.{% else %}Usado para as SMS da sua entidade.{% endif %}</small></span>
+          <input class="{{ invalid(errors, 'phone') }}" type="tel" inputmode="tel" id="s-phone" name="phone" placeholder="912 345 678" value="{{ pretty_phone(g.user.phone) }}">
+        </label>
+        {{ field_error(errors, 'phone') }}
+        <label class="tu-s-row tu-s-toggle">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M4 5.5h16v11H9l-5 3.5z"/></svg>
+          <span><b>Receber SMS</b><small>Pode desligar durante as férias, por exemplo.</small></span>
+          <input type="checkbox" role="switch" name="sms_alerts" value="1" {{ 'checked' if g.user.sms_alerts }}><i class="tu-s-switch" aria-hidden="true"></i>
+        </label>
+        {% endif %}
+        <div class="tu-s-actions"><button class="tu-s-btn" type="submit">Guardar</button></div>
+      </form>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  {# ================================================================ Tema #}
+  <section id="aparencia">
+    <h2 class="tu-s-sec">Tema</h2>
+    <div class="tu-s-list" role="radiogroup" aria-label="Tema">
+      <label class="tu-s-row tu-s-radio">
+        <svg class="tu-s-ico" {{ ico|safe }}><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+        <span><b>Claro</b></span>
+        <input type="radio" name="tu-theme" value="light" data-pref="tu-theme">{{ check|safe }}
+      </label>
+      <label class="tu-s-row tu-s-radio">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+        <span><b>Escuro</b></span>
+        <input type="radio" name="tu-theme" value="dark" data-pref="tu-theme">{{ check|safe }}
+      </label>
+    </div>
+    <p class="tu-s-hint">Guardado neste aparelho.</p>
+  </section>
+
+  {# ================================================================ Privacidade #}
+  <section id="privacidade">
+    <h2 class="tu-s-sec">Privacidade da conta</h2>
+    <div class="tu-s-list">
+      <a class="tu-s-row" href="{{ url_for('privacy') }}">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 3.5 5 6.5v5c0 4.2 3 7.8 7 9 4-1.2 7-4.8 7-9v-5z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span><b>Política de privacidade</b></span>{{ chev|safe }}
+      </a>
+      {% if not g.user %}
+        <a class="tu-s-row" href="{{ url_for('login', next=url_for('settings')) }}">
+          <svg class="tu-s-ico" {{ ico|safe }}><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6"/></svg>
+          <span><b>Entre para gerir a sua conta</b><small>Descarregar os seus dados ou apagar a conta.</small></span>{{ chev|safe }}
+        </a>
+      {% else %}
+        <a class="tu-s-row" href="{{ url_for('settings_export') }}" download>
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
+          <span><b>Descarregar os meus dados</b></span>{{ chev|safe }}
+        </a>
+        {% if g.user.role == 'citizen' %}
+        <details class="tu-s-danger" {{ 'open' if errors.get('delete_password') or errors.get('delete_confirm') }}>
+          <summary class="tu-s-row">
+            <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
+            <span><b>Apagar a minha conta</b><small>Para sempre. As ocorrências ficam no histórico, sem o seu nome.</small></span>{{ chev|safe }}
+          </summary>
+          <form method="post" action="{{ url_for('settings_delete_account') }}" class="tu-s-form" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <p>O nome, o email, a fotografia, os alertas e as freguesias que acompanha são eliminados. Não é possível recuperar a conta.</p>
+            <label class="form-label" for="d-pass">Palavra-passe</label>
+            <div class="tu-field-reveal">
+              <input class="form-control{{ invalid(errors, 'delete_password') }}" type="password" id="d-pass" name="password" autocomplete="current-password" required>
+              {{ reveal('d-pass') }}
+            </div>
+            {{ field_error(errors, 'delete_password') }}
+            <label class="form-label mt-3" for="d-confirm">Escreva <b>APAGAR</b></label>
+            <input class="form-control{{ invalid(errors, 'delete_confirm') }}" id="d-confirm" name="confirm" autocomplete="off" required>
+            {{ field_error(errors, 'delete_confirm') }}
+            <button class="tu-s-btn is-danger" type="submit">Apagar a conta para sempre</button>
+          </form>
+        </details>
+        {% else %}
+        <div class="tu-s-row is-static">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
+          <span><b>Apagar a conta</b><small>As contas das entidades são geridas pela conta principal da Câmara.</small></span>
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+
+  <p class="tu-s-foot">Townly Up · versão {{ app_version }} · <a href="{{ url_for('help_page') }}">Ajuda e perguntas</a></p>
+</div>
+{% endblock %}
+{% block scripts %}
+{% include "_auth_scripts.html" %}
+<script>
+  // Tema (claro/escuro): guardado no aparelho (localStorage) e aplicadas na hora.
+  (function () {
+    const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                    set: (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
+    const defaults = { 'tu-theme': document.documentElement.getAttribute('data-theme') || 'light' };
+    document.querySelectorAll('[data-pref]').forEach(input => {
+      const key = input.dataset.pref, saved = store.get(key) || defaults[key] || null;
+      if (input.type === 'radio') input.checked = input.value === saved;
+      else input.checked = saved === input.value;
+      input.addEventListener('change', () => {
+        if (input.type === 'radio') store.set(key, input.value);
+        else store.set(key, input.checked ? input.value : null);
+        window.tuApplyPrefs && window.tuApplyPrefs();
+      });
+    });
+  })();
+</script>
+{% endblock %}

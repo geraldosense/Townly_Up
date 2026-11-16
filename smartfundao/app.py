@@ -5,6 +5,8 @@ Câmara Municipal do Fundão.
 
 Executar:  flask --app app run --debug --port 8000
 """
+import io
+import json
 import os
 import time
 from datetime import datetime, timezone
@@ -12,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 import click
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
-                   make_response, request, send_from_directory, url_for)
+                   make_response, request, send_from_directory, session, url_for)
 from werkzeug.exceptions import HTTPException
 
 import community as cm
@@ -21,6 +23,7 @@ import mailer
 import reference
 import services as sv
 import sms
+import territory
 from api import bp as api_bp
 from db import close_db, get_db, init_db
 from security import (check_csrf, csrf_token, hash_password, is_safe_next,
@@ -48,11 +51,13 @@ def create_app(test_config=None):
         DATABASE=os.path.join(app.instance_path, "townlyup.db"),
         UPLOAD_FOLDER=os.path.join(app.root_path, "uploads"),
         MAX_IMAGE_BYTES=5 * 1024 * 1024,        # 5 MB por imagem
+        MAX_AVATAR_BYTES=18 * 1024 * 1024,      # fotografia de perfil: qualquer imagem até 18 MB (fica 320×320)
         MAX_CONTENT_LENGTH=20 * 1024 * 1024,    # 20 MB por pedido
         CSRF_ENABLED=True,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE") == "1",
+        TEMPLATES_AUTO_RELOAD=os.environ.get("TEMPLATES_AUTO_RELOAD") == "1" or None,
     )
     if test_config:
         app.config.update(test_config)
@@ -73,11 +78,36 @@ def create_app(test_config=None):
     register_errors(app)
     register_cli(app)
 
+    # Concelhos ativos = os que têm a conta da Câmara criada (lido da base de dados, uma vez por pedido).
+    import territory as _territory
+    from flask import has_app_context
+
+    def _active_now():
+        if not has_app_context():
+            return _territory.ACTIVE
+        if "active_municipalities" not in g:
+            g.active_municipalities = sv.active_municipalities(get_db())
+        return g.active_municipalities
+    _territory._active_source = _active_now
+
     # Aplica as migrações em falta e os dados de referência ao arrancar (idempotente).
     with app.app_context():
         init_db()
     ensure_parishes_in_background(app)
     return app
+
+
+def report_center(user):
+    """Centro do mapa ao comunicar: o do concelho da conta (Fundão por omissão)."""
+    m = (user["municipality"] if user is not None else None) or "Fundão"
+    if m == "Fundão":
+        return sv.FUNDAO_CENTER
+    try:
+        from flask import current_app
+        b = territory.geometry(m, current_app.config.get("GEO_CACHE_DIR") or current_app.instance_path)["bbox"]
+        return ((b[1] + b[3]) / 2, (b[0] + b[2]) / 2)
+    except Exception:
+        return sv.FUNDAO_CENTER
 
 
 # ====================================================================== Templates
@@ -101,31 +131,43 @@ def register_template_helpers(app):
     app.add_template_filter(sv.status_slug, "slug")
 
     ASSET_VERSION = str(int(time.time()))  # muda a cada arranque do servidor
+    PARISH_CHOICES = sorted(((c, reference.short_name(n)) for c, n in reference.PARISHES), key=lambda p: p[1])
 
     @app.context_processor
     def inject_globals():
-        unread, my_level = 0, None
+        unread, my_level, pending_warning, pending_requests = 0, None, None, 0
         if g.get("user"):
             db = get_db()
+            if g.user["role"] == "admin":          # pedidos de acesso por tratar (aparecem no menu e no início)
+                pending_requests = db.execute("SELECT COUNT(*) FROM entity_requests WHERE status = 'pendente'").fetchone()[0]
             unread = db.execute(
                 "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = FALSE",
                 (g.user["id"],),
             ).fetchone()[0] + sv.community_unread(db, g.user)
             if g.user["role"] == "citizen":
                 my_level = cm.level_for(cm.user_points(db, g.user["id"]))
+                pending_warning = sv.unseen_warning(db, g.user["id"])
         return {
             "csrf_token": csrf_token,
             "STATUS_DESCRIPTIONS": sv.STATUS_DESCRIPTIONS,
             "ALL_STATUSES": sv.ALL_STATUSES,
             "ROLE_LABELS": sv.ROLE_LABELS,
             "unread_count": unread,
+            "pending_requests": pending_requests,
             "my_level": my_level,
             "category_style": cm.category_style,
             "parish_image": parish_image,
             "asset_version": ASSET_VERSION,
             "auth_figures": _AuthFigures(),
             "contact_email": os.environ.get("CONTACT_EMAIL", "").strip(),
+            "app_version": "1.0",
+            # Ligações das lojas (quando a app for publicada); sem elas aparece «Brevemente».
+            "app_store_url": os.environ.get("APP_STORE_URL", "").strip(),
+            "play_store_url": os.environ.get("PLAY_STORE_URL", "").strip(),
             "current_year": datetime.now(timezone.utc).year,
+            "parish_choices": PARISH_CHOICES,
+            "pending_warning": pending_warning,
+            "warning_labels": sv.WARNING_KIND_LABELS,
         }
 
     class _AuthFigures:
@@ -154,6 +196,16 @@ def register_template_helpers(app):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
+        # Respostas grandes (mapa, páginas) comprimidas: 5–10× menos dados no telemóvel.
+        if (response.status_code == 200 and not response.direct_passthrough and "Content-Encoding" not in response.headers
+                and "gzip" in request.headers.get("Accept-Encoding", "")
+                and (response.mimetype or "").startswith(("application/json", "text/html", "text/css", "application/javascript", "text/javascript"))):
+            data = response.get_data()
+            if len(data) > 1400:
+                import gzip
+                response.set_data(gzip.compress(data, 5))
+                response.headers["Content-Encoding"] = "gzip"
+                response.headers["Vary"] = "Accept-Encoding"
         return response
 
 
@@ -167,14 +219,12 @@ def register_routes(app):
     def index():
         db = get_db()
         counts = sv.status_counts(db)
-        public = cm.public_map(db)  # só dados seguros (sem nomes, títulos nem fotos)
         stats = {
             "active": sum(counts[st] for st in sv.ACTIVE_STATUSES),
             "resolved": counts[sv.RESOLVIDA],
             "people": db.execute("SELECT COUNT(*) FROM users WHERE role = 'citizen'").fetchone()[0],
         }
-        recent = public[:12]  # ativas + resolvidas nos últimos 30 dias, mais recentes primeiro (só dados públicos)
-        return render_template("index.html", stats=stats, recent=recent)
+        return render_template("index.html", stats=stats)
 
     # ------------------------------------------------------------ Comunidade e informação
     @app.get("/freguesias")
@@ -204,7 +254,7 @@ def register_routes(app):
         if parish is None:
             abort(404)
         junta = sv.organization_by(db, "junta", code)
-        items = [i for i in cm.public_map(db) if i["parish_code"] == code]
+        items = cm.public_map(db, parish=code, limit=500)
         followed = sv.followed_parishes(db, g.user["id"]) if g.user else []
         return render_template("parish.html", parish=parish, junta=junta, items=items,
                                image=app.parish_image(code), following=code in followed,
@@ -215,19 +265,35 @@ def register_routes(app):
         if g.user:
             return redirect(home_for(g.user))
         errors = {}
-        if request.method == "POST":
+        access = "entidade" if (request.form.get("access") or request.args.get("acesso")) == "entidade" else "cidadao"
+        if request.method == "POST" and access == "entidade":
+            # Entidades não criam conta sozinhas: fazem um pedido de acesso, que a conta principal verifica.
+            try:
+                entity = sv.create_entity_request(get_db(), request.form)
+                flash(f"Pedido de acesso enviado para {entity}. A Câmara vai verificar e enviar-lhe os dados de entrada "
+                      "para o email indicado.", "success")
+                return redirect(url_for("login", acesso="entidade"))
+            except sv.ValidationError as exc:
+                errors = exc.errors
+        elif request.method == "POST":
             db = get_db()
             try:
-                name, email, password, parish = sv.validate_registration(db, request.form)
+                name, email, password, parish, district, municipality = sv.validate_registration(db, request.form, app.config.get("GEO_CACHE_DIR") or app.instance_path)
                 # O perfil é SEMPRE 'citizen': o campo role nunca vem do formulário.
-                user_id = sv.create_user(db, name, email, hash_password(password), parish=parish)
+                user_id = sv.create_user(db, name, email, hash_password(password), parish=parish,
+                                         district=district, municipality=municipality)
                 login_user({"id": user_id})
-                flash(f"Bem-vindo/a, {name}! A sua conta foi criada.", "success")
+                if territory.is_active(municipality):
+                    flash(f"Bem-vindo/a, {name}! A sua conta foi criada.", "success")
+                else:
+                    flash(f"Bem-vindo/a, {name}! O Townly Up ainda não está disponível no concelho de {municipality}: "
+                          "pode explorar o mapa e, quando a sua Câmara aderir, passa a poder comunicar.", "info")
                 return redirect(url_for("citizen_dashboard"))
             except sv.ValidationError as exc:
                 errors = exc.errors
         parishes = sorted(((c, reference.short_name(n)) for c, n in reference.PARISHES), key=lambda p: p[1])
-        return render_template("register.html", errors=errors, form=request.form, parishes=parishes)
+        return render_template("register.html", errors=errors, form=request.form, parishes=parishes,
+                               territory=territory.options(), access=access, entity_kinds=sv.ENTITY_KINDS)
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -237,10 +303,20 @@ def register_routes(app):
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
             password = request.form.get("password", "")
+            access = request.form.get("access", "")       # «cidadao» ou «entidade» (separadores do ecrã de entrada)
             db = get_db()
             user = db.execute("SELECT * FROM users WHERE email = ? AND active = TRUE", (email,)).fetchone()
-            if user is None or not verify_password(user["password_hash"], password):
+            banned = None if user else db.execute(
+                "SELECT password_hash FROM users WHERE email = ? AND banned_at IS NOT NULL AND active = FALSE", (email,)).fetchone()
+            if banned is not None and verify_password(banned["password_hash"], password):
+                error = ("Esta conta foi banida por desrespeitar duas vezes as regras da comunidade "
+                         "(linguagem ofensiva ou imagens impróprias). Se acha que foi um engano, contacte a Câmara Municipal.")
+            elif user is None or not verify_password(user["password_hash"], password):
                 error = "Email ou palavra-passe incorretos."  # mensagem neutra
+            elif access == "entidade" and user["role"] == "citizen":
+                error = "Esta é uma conta de cidadão. Use o separador «Cidadão» para entrar."
+            elif access == "cidadao" and user["role"] != "citizen":
+                error = "Esta é uma conta de entidade (Câmara, Junta ou serviço). Use o separador «Câmara»."
             else:
                 with db:
                     db.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (sv.utcnow(), user["id"]))
@@ -248,7 +324,9 @@ def register_routes(app):
                 flash(f"Sessão iniciada. Olá, {user['name']}!", "success")
                 target = request.args.get("next")
                 return redirect(target if is_safe_next(target) else home_for(user))
-        return render_template("login.html", error=error, form=request.form)
+        access = request.form.get("access") or request.args.get("acesso") or "cidadao"
+        return render_template("login.html", error=error, form=request.form,
+                               access="entidade" if access == "entidade" else "cidadao")
 
     @app.post("/logout")
     @login_required
@@ -289,6 +367,10 @@ def register_routes(app):
         followed = set(sv.followed_parishes(db, g.user["id"]))
         parishes = sorted(((c, reference.short_name(n)) for c, n in reference.PARISHES), key=lambda p: p[1])
         scope = db.execute("SELECT alert_scope FROM users WHERE id = ?", (g.user["id"],)).fetchone()["alert_scope"]
+        # Abrir os alertas = vê-los: ficam todos como lidos e o número do sino desaparece logo.
+        # (A lista acima já foi lida, por isso os novos continuam destacados nesta visita.)
+        sv.mark_alerts_seen(db, g.user)
+        load_logged_in_user()
         return render_template("notifications.html", items=items, followed=followed, parishes=parishes, scope=scope)
 
     @app.post("/alertas/alcance")
@@ -296,7 +378,7 @@ def register_routes(app):
     def notifications_scope():
         sv.set_alert_scope(get_db(), g.user, request.form.get("scope", ""))
         flash("Preferência de alertas guardada.", "success")
-        return redirect(url_for("notifications_page"))
+        return redirect(url_for("settings") + "#notificacoes")
 
     @app.post("/alertas/lidas")
     @login_required
@@ -311,7 +393,7 @@ def register_routes(app):
         codes = sv.set_followed_parishes(get_db(), g.user["id"], request.form.getlist("parish"))
         flash(f"Passa a receber alertas de {len(codes)} freguesia{'s' if len(codes) != 1 else ''}.", "success")
         target = request.form.get("next")
-        return redirect(target if is_safe_next(target) else url_for("notifications_page"))
+        return redirect(target if is_safe_next(target) else url_for("settings") + "#notificacoes")
 
     @app.route("/incidents/new", methods=["GET", "POST"])
     @role_required("citizen")
@@ -334,16 +416,20 @@ def register_routes(app):
                 return redirect(url_for("incident_submitted", incident_id=incident_id))
             except sv.ValidationError as exc:
                 errors, similar = exc.errors, exc.similar
-                if exc.suspended:
+                if exc.banned:
                     logout_user()
-                    flash(exc.errors["photos"], "danger")
+                    flash(next(iter(exc.errors.values())), "danger")
                     return redirect(url_for("login"))
+                if exc.warned:
+                    flash(next(iter(exc.errors.values())), "warning")
                 if not similar:
                     flash("Verifique os campos assinalados. Os dados escritos foram mantidos.", "danger")
         categories = db.execute("SELECT * FROM categories WHERE active = TRUE ORDER BY id").fetchall()
+        subcategories = sv.subcategories_by_category(db)
         return render_template(
-            "citizen/new_incident.html", categories=categories, errors=errors, radius=cm.NEARBY_RADIUS_M,
-            form=request.form, center=sv.FUNDAO_CENTER, max_images=sv.MAX_IMAGES, similar=similar,
+            "citizen/new_incident.html", categories=categories, subcategories=subcategories, errors=errors, radius=cm.NEARBY_RADIUS_M,
+            form=request.form, center=report_center(g.user), max_images=sv.MAX_IMAGES, similar=similar,
+            can_report=sv.can_report(g.user),
         ), (400 if errors else 200)
 
     def public_url(endpoint, **values):
@@ -383,6 +469,7 @@ def register_routes(app):
             "citizen/detail.html", incident=incident, counts=cm.confirmation_counts(db, incident_id),
             history=sv.get_history(db, incident_id), images=sv.get_images(db, incident_id),
             can_delete=sv.can_delete(g.user, incident),
+            can_rate=sv.can_rate(g.user, incident), rating=sv.latest_rating(db, incident),
         )
 
     @app.post("/incidents/<int:incident_id>/apagar")
@@ -413,13 +500,87 @@ def register_routes(app):
         response.headers["Cache-Control"] = "private, max-age=3600"
         return response
 
+    _thumbs = {}
+
+    @app.get("/media/publica/<int:incident_id>.jpg")
+    @app.get("/media/publica/<int:incident_id>/<kind>.jpg")
+    def public_photo(incident_id, kind="antes"):
+        """Miniaturas públicas (480 px, sem metadados):
+           • «antes»  — 1.ª fotografia do problema de ocorrências que estão no mapa público ou já resolvidas;
+           • «depois» — 1.ª fotografia da resolução, só de ocorrências resolvidas («Antes e depois»).
+        As restantes fotografias continuam privadas (ver media())."""
+        if kind not in ("antes", "depois"):
+            abort(404)
+        db = get_db()
+        row = db.execute("SELECT status, deleted_at FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+        resolved = row is not None and row["deleted_at"] is None and row["status"] == sv.RESOLVIDA
+        if not (resolved or (kind == "antes" and cm.is_public(db, incident_id))):
+            abort(404)
+        image = db.execute("""SELECT id, data, stored_filename FROM incident_images WHERE incident_id = ? AND kind = ?
+                               ORDER BY id LIMIT 1""", (incident_id, "report" if kind == "antes" else "resolution")).fetchone()
+        if image is None:
+            abort(404)
+        if image["id"] not in _thumbs:
+            raw = bytes(image["data"]) if image["data"] is not None else open(
+                os.path.join(app.config["UPLOAD_FOLDER"], image["stored_filename"]), "rb").read()
+            from PIL import Image
+            with Image.open(io.BytesIO(raw)) as im:
+                im = im.convert("RGB")
+                im.thumbnail((720, 720) if kind == "depois" or request.args.get("g") else (480, 480))
+                out = io.BytesIO()
+                im.save(out, "JPEG", quality=80, optimize=True)
+            if len(_thumbs) > 200:
+                _thumbs.clear()
+            _thumbs[image["id"]] = out.getvalue()
+        response = make_response(_thumbs[image["id"]])
+        response.headers["Content-Type"] = "image/jpeg"
+        response.headers["Cache-Control"] = "public, max-age=600"
+        return response
+
+    @app.get("/resolvidas")
+    def before_after():
+        """«Antes e depois»: problemas resolvidos com a fotografia do problema e a da resolução."""
+        db = get_db()
+        items = sv.before_after(db)
+        return render_template("pages/before_after.html", items=items, satisfaction=sv.satisfaction(db))
+
+    @app.post("/incidents/<int:incident_id>/avaliar")
+    @role_required("citizen")
+    def rate_incident(incident_id):
+        db = get_db()
+        incident = sv.get_incident(db, incident_id)
+        if incident is None:
+            abort(404)
+        try:
+            reopened = sv.rate_resolution(db, g.user, incident, request.form)
+        except PermissionError:
+            abort(403)
+        except sv.ValidationError as exc:
+            flash(" ".join(exc.errors.values()), "danger")
+            if exc.banned:
+                logout_user()
+                return redirect(url_for("login"))
+            return redirect(url_for("incident_detail", incident_id=incident_id) + "#avaliar")
+        flash("A ocorrência foi reaberta e a entidade foi avisada." if reopened else "Obrigado pela avaliação!", "success")
+        return redirect(url_for("incident_detail", incident_id=incident_id))
+
     # ------------------------------------------------------------ Comunidade (estilo Waze)
     @app.get("/mapa")
     def live_map():
         """Mapa vivo: público, mas só com dados seguros (ver community.public_incident)."""
         db = get_db()
         categories = db.execute("SELECT id, name FROM categories WHERE active = TRUE ORDER BY id").fetchall()
-        return render_template("map.html", categories=categories, center=sv.FUNDAO_CENTER)
+        # O mapa abre (e fica limitado) ao concelho da conta. Concelhos que ainda não aderiram veem o aviso.
+        # O mapa abre no concelho da conta (qualquer um dos 308) e, se a pessoa indicou a freguesia, já nela.
+        mine = g.user["municipality"] if g.user and g.user["municipality"] else None
+        name = mine if mine in territory.MUNICIPALITY_DISTRICT else territory.DEFAULT
+        area = {"name": name, "district": territory.MUNICIPALITY_DISTRICT.get(name), "active": territory.is_active(name),
+                "center": territory.ACTIVE.get(name, {}).get("center")}
+        my_parish = (g.user["home_parish"] or g.user["parish_code"]) if g.user else None
+        # Sem sessão iniciada o mapa mostra Portugal continental inteiro (com as ocorrências dos concelhos aderentes).
+        return render_template("map.html", categories=categories, area=area, my_municipality=mine, my_parish=my_parish,
+                               national=g.user is None,
+                               can_report=(g.user is None or g.user["role"] != "citizen" or sv.can_report(g.user)))
 
     @app.post("/incidents/<int:incident_id>/confirm")
     @role_required("citizen")
@@ -477,7 +638,12 @@ def register_routes(app):
             "q": request.args.get("q", "").strip()[:100],
             "sort": request.args.get("sort", "recentes"),
         }
-        incidents = sv.search_incidents(db, user=g.user, **filters)
+        # Paginação: 50 de cada vez (com milhares de ocorrências a página continua leve).
+        per_page = 50
+        total = sv.search_incidents(db, user=g.user, count=True, **filters)
+        pages = max(1, -(-total // per_page))
+        page = min(max(1, request.args.get("pagina", 1, type=int)), pages)
+        incidents = sv.search_incidents(db, user=g.user, limit=per_page, offset=(page - 1) * per_page, **filters)
         points = [
             {"id": i["id"], "ticket": i["ticket"], "title": i["title"], "status": i["status"],
              "slug": sv.status_slug(i["status"]), "lat": i["latitude"], "lng": i["longitude"],
@@ -488,6 +654,7 @@ def register_routes(app):
         ]
         return render_template(
             "admin/dashboard.html", incidents=incidents, filters=filters, points=points,
+            page=page, pages=pages, total=total,
             counts=sv.status_counts(db, user=g.user), category_counts=sv.category_counts(db, user=g.user),
             categories=db.execute("SELECT * FROM categories ORDER BY id").fetchall(),
             parishes=db.execute("SELECT code, short_name FROM parishes ORDER BY short_name").fetchall(),
@@ -517,6 +684,8 @@ def register_routes(app):
             history=sv.get_history(db, incident_id), images=sv.get_images(db, incident_id),
             next_statuses=sv.TRANSITIONS[incident["status"]], closed=incident["status"] in sv.CLOSED_STATUSES,
             priorities=sv.PRIORITIES, errors=errors or {}, form=form or {},
+            ratings=db.execute("SELECT stars, comment, reopened, created_at FROM resolution_ratings WHERE incident_id = ? "
+                               "ORDER BY id DESC", (incident_id,)).fetchall(),
             organizations=db.execute(
                 "SELECT id, name, kind FROM organizations WHERE active = TRUE ORDER BY kind, name").fetchall(),
         )
@@ -526,7 +695,15 @@ def register_routes(app):
     @role_required("admin")
     def admin_supervision():
         import supervision
-        return render_template("admin/supervision.html", s=supervision.overview(get_db()))
+        db = get_db()
+        return render_template("admin/supervision.html", s=supervision.overview(db), safety=sv.safety_overview(db))
+
+    @app.post("/admin/contas/<int:user_id>/levantar-banimento")
+    @role_required("admin")
+    def lift_ban(user_id):
+        if sv.lift_ban(get_db(), user_id):
+            flash("Banimento levantado. A conta voltou a estar ativa e os avisos anteriores foram anulados.", "success")
+        return redirect(url_for("admin_supervision") + "#seguranca")
 
     # ------------------------------------------------------------ Contas das entidades (só a Câmara)
     @app.route("/admin/contas", methods=["GET", "POST"])
@@ -544,11 +721,54 @@ def register_routes(app):
                 errors = exc.errors
         test_active = db.execute("SELECT COUNT(*) FROM users WHERE email LIKE ? AND active = TRUE",
                                  (f"%@{TEST_DOMAIN}",)).fetchone()[0]
-        return render_template("admin/accounts.html", accounts=sv.staff_accounts(db),
+        # «Criar conta» a partir de um pedido de acesso: preenche o formulário da Câmara com os dados do pedido.
+        prefill = {}
+        if request.args.get("pedido", "").isdigit():
+            r = db.execute("SELECT * FROM entity_requests WHERE id = ?", (int(request.args["pedido"]),)).fetchone()
+            if r:
+                prefill = {"district": r["district"], "municipality": r["municipality"], "name": r["contact_name"],
+                           "email": r["email"], "phone": r["phone"] or ""}
+        return render_template("admin/accounts.html", accounts=sv.staff_accounts(db), requests=sv.entity_requests(db),
                                organizations=sv.organizations_for_select(db), errors=errors,
                                form=request.form if request.method == "POST" else {},
+                               camaras=sv.camaras(db), camara_form=session.pop("camara_form", None) or prefill,
+                               camara_errors=session.pop("camara_errors", {}), territory=territory.options(),
                                test_allowed=test_accounts_allowed(), test_active=test_active,
                                test_plan=test_accounts_plan(), test_password=TEST_PASSWORD)
+
+    @app.post("/admin/camaras")
+    @role_required("admin")
+    def admin_create_camara():
+        """A plataforma cria a conta da Câmara Municipal de um concelho (Distrito → Concelho); o concelho fica ativo."""
+        try:
+            _uid, municipality = sv.create_camara_account(get_db(), request.form, hash_password)
+            flash(f"Conta da Câmara de {municipality} criada para {request.form.get('email', '').strip().lower()}. "
+                  f"O concelho de {municipality} está ativo: as ocorrências de lá vão para esta Câmara. "
+                  "Entregue a palavra-passe temporária à pessoa (pode mudá-la em «A minha conta»).", "success")
+        except sv.ValidationError as exc:
+            session["camara_errors"] = exc.errors
+            session["camara_form"] = {k: request.form.get(k, "") for k in ("district", "municipality", "name", "email", "phone")}
+            flash("Verifique os campos assinalados.", "danger")
+        return redirect(url_for("admin_accounts") + "#camara")
+
+    @app.post("/admin/pedidos/<int:request_id>/tratado")
+    @role_required("admin")
+    def admin_close_request(request_id):
+        sv.close_entity_request(get_db(), request_id)
+        flash("Pedido marcado como tratado.", "info")
+        return redirect(url_for("admin_accounts") + "#pedidos")
+
+    @app.post("/admin/contas/converter")
+    @role_required("admin")
+    def admin_convert_account():
+        """Transforma uma conta de cidadão já existente em conta de entidade (Câmara, Junta ou serviço)."""
+        try:
+            name = sv.convert_to_staff(get_db(), request.form)
+            flash(f"A conta de {name} passou a ser uma conta de entidade. Deixa de poder comunicar como cidadão "
+                  "e passa a tratar as ocorrências no painel.", "success")
+        except sv.ValidationError as exc:
+            flash(" ".join(exc.errors.values()), "danger")
+        return redirect(url_for("admin_accounts") + "#converter")
 
     def test_accounts_allowed():
         """As contas de teste só se criam no computador (modo de desenvolvimento) ou com TEST_ACCOUNTS=1."""
@@ -596,7 +816,7 @@ def register_routes(app):
                 sv.remove_avatar(get_db(), g.user)
                 flash("Fotografia de perfil removida.", "info")
             else:
-                sv.set_avatar(get_db(), g.user, request.files.get("avatar"), app.config["MAX_IMAGE_BYTES"])
+                sv.set_avatar(get_db(), g.user, request.files.get("avatar"), app.config["MAX_AVATAR_BYTES"])
                 flash("Fotografia de perfil atualizada.", "success")
         except sv.ValidationError as exc:
             flash(exc.errors["avatar"], "danger")
@@ -616,7 +836,31 @@ def register_routes(app):
                 return redirect(url_for("account"))
             except sv.ValidationError as exc:
                 errors = exc.errors
-        return render_template("account.html", errors=errors, profile_form={}, has_password=bool(info["has_password"]))
+        return render_template("account.html", errors=errors, profile_form={}, has_password=bool(info["has_password"]),
+                               profile=profile_data(db, g.user))
+
+    def profile_data(db, user):
+        """Perfil ao estilo das redes sociais: números, nível e as ocorrências da pessoa em grelha."""
+        if user["role"] != "citizen":
+            org = user["organization_id"]
+            counts = db.execute(
+                """SELECT COALESCE(SUM(CASE WHEN status IN ('Registada', 'Em análise', 'Em tratamento') THEN 1 ELSE 0 END), 0),
+                          COALESCE(SUM(CASE WHEN status = 'Resolvida' THEN 1 ELSE 0 END), 0)
+                     FROM incidents WHERE deleted_at IS NULL AND organization_id = ?""", (org,)).fetchone() if org else (0, 0)
+            return {"stats": [(counts[0], "em curso"), (counts[1], "resolvidas")], "level": None, "posts": []}
+        rows = db.execute(
+            """SELECT i.id, i.ticket, i.status, c.name AS category,
+                      (SELECT MIN(m.id) FROM incident_images m WHERE m.incident_id = i.id AND m.kind = 'report') AS photo
+                 FROM incidents i JOIN categories c ON c.id = i.category_id
+                WHERE i.author_id = ? AND i.deleted_at IS NULL ORDER BY i.id DESC LIMIT 30""", (user["id"],)).fetchall()
+        total = db.execute("SELECT COUNT(*) FROM incidents WHERE author_id = ? AND deleted_at IS NULL", (user["id"],)).fetchone()[0]
+        solved = db.execute("SELECT COUNT(*) FROM incidents WHERE author_id = ? AND deleted_at IS NULL AND status = 'Resolvida'",
+                            (user["id"],)).fetchone()[0]
+        points = cm.user_points(db, user["id"])
+        return {"stats": [(total, "ocorrência" if total == 1 else "ocorrências"), (solved, "resolvida" if solved == 1 else "resolvidas"),
+                          (points, "pontos")],
+                "level": cm.level_for(points),
+                "posts": [dict(r, slug=sv.status_slug(r["status"]), **cm.category_style(r["category"])) for r in rows]}
 
     @app.post("/conta/dados")
     @login_required
@@ -629,43 +873,128 @@ def register_routes(app):
         except sv.ValidationError as exc:
             info = db.execute("SELECT has_password FROM users WHERE id = ?", (g.user["id"],)).fetchone()
             return render_template("account.html", errors=exc.errors, profile_form=request.form,
-                                   has_password=bool(info["has_password"])), 400
+                                   has_password=bool(info["has_password"]), profile=profile_data(db, g.user)), 400
 
-    # ------------------------------------------------------------ Responsáveis por freguesia (conta principal)
-    @app.route("/admin/freguesias", methods=["GET", "POST"])
-    @role_required("admin")
-    def admin_parishes():
-        db = get_db()
-        errors, form = {}, {}
-        if request.method == "POST":
-            form = request.form
-            try:
-                sv.create_parish_manager(db, form, hash_password)
-                flash(f"Responsável criado para {reference.short_name(dict(reference.PARISHES)[form['parish_code']])}. "
-                      "Entregue a palavra-passe temporária à pessoa: ela pode mudá-la em «A minha conta».", "success")
-                return redirect(url_for("admin_parishes") + f"#f-{form['parish_code']}")
-            except sv.ValidationError as exc:
-                errors = exc.errors
-        rows = sv.parish_managers(db)
-        return render_template("admin/parishes.html", rows=rows, errors=errors, form=form,
-                               covered=sum(r["covered"] for r in rows), with_sms=sum(r["sms"] for r in rows),
-                               sms_backend=sms.backend(), pretty_phone=sms.pretty_phone,
-                               preselect=request.args.get("freguesia", "")), (400 if errors else 200)
+    # ------------------------------------------------------------ Definições e ajuda
+    @app.get("/definicoes")
+    def settings(errors=None):
+        """Aparência e acessibilidade (para todos, guardadas no próprio aparelho); notificações e privacidade (com conta)."""
+        ctx = {"errors": errors or {}}
+        if g.user:
+            db = get_db()
+            ctx["followed"] = set(sv.followed_parishes(db, g.user["id"]))
+            ctx["parishes"] = sorted(((c, reference.short_name(n)) for c, n in reference.PARISHES), key=lambda p: p[1])
+            ctx["scope"] = g.user["alert_scope"]
+            ctx["pretty_phone"] = sms.pretty_phone
+            ctx["territory"] = territory.options()
+        return render_template("settings.html", **ctx)
 
-    @app.post("/admin/freguesias/<int:user_id>/telemovel")
-    @role_required("admin")
-    def admin_parish_phone(user_id):
-        db = get_db()
-        row = db.execute("SELECT o.parish_code FROM users u JOIN organizations o ON o.id = u.organization_id "
-                         "WHERE u.id = ? AND o.kind = 'junta'", (user_id,)).fetchone()
-        if row is None:
-            abort(404)
+    @app.post("/definicoes/notificacoes")
+    @login_required
+    def settings_notifications():
         try:
-            sv.set_manager_phone(db, user_id, request.form)
-            flash("Telemóvel atualizado.", "success")
+            sv.set_notification_prefs(get_db(), g.user, request.form)
+            flash("Definições de notificações guardadas.", "success")
         except sv.ValidationError as exc:
-            flash(exc.errors["phone"], "danger")
-        return redirect(url_for("admin_parishes") + f"#f-{row['parish_code']}")
+            load_logged_in_user()
+            return settings(errors=exc.errors), 400
+        return redirect(url_for("settings") + "#notificacoes")
+
+    @app.get("/definicoes/dados")
+    @login_required
+    def settings_export():
+        data = sv.export_user_data(get_db(), g.user)
+        body = json.dumps(data, ensure_ascii=False, indent=2)
+        return app.response_class(body, mimetype="application/json", headers={
+            "Content-Disposition": f'attachment; filename="townlyup-os-meus-dados-{datetime.now():%Y%m%d}.json"'})
+
+    @app.post("/definicoes/apagar-conta")
+    @login_required
+    def settings_delete_account():
+        try:
+            sv.delete_own_account(get_db(), g.user, request.form, verify_password)
+        except sv.ValidationError as exc:
+            return settings(errors=exc.errors), 400
+        logout_user()
+        flash("A sua conta foi apagada. Obrigado por ter ajudado o concelho.", "info")
+        return redirect(url_for("index"))
+
+    @app.get("/ajuda")
+    def help_page():
+        return render_template("pages/help.html")
+
+    # ------------------------------------------------------------ Painel «Configurações» do menu (perfil rápido)
+    @app.post("/conta/painel")
+    @login_required
+    def account_panel():
+        """Guarda o painel do menu: nome, email (pede a palavra-passe se mudar), freguesia e notificações."""
+        db = get_db()
+        back = request.form.get("next")
+        back = back if is_safe_next(back) else url_for("index")
+        try:
+            sv.update_profile(db, g.user, request.form, verify_password)
+        except sv.ValidationError as exc:
+            flash("Não foi possível guardar: " + " ".join(exc.errors.values()), "danger")
+            return redirect(back)
+        with db:
+            if g.user["role"] == "citizen":
+                code = request.form.get("parish_code", "")
+                code = code if code in sv.PARISH_CODES else None
+                db.execute("UPDATE users SET parish_code = ?, home_parish = COALESCE(?, home_parish), email_receipts = ? WHERE id = ?",
+                           (code, code, request.form.get("notify") == "1", g.user["id"]))
+            elif g.user["role"] == "staff":
+                db.execute("UPDATE users SET sms_alerts = ? WHERE id = ?", (request.form.get("notify") == "1", g.user["id"]))
+        flash("Alterações guardadas.", "success")
+        return redirect(back)
+
+    @app.post("/conta/avisos/visto")
+    @login_required
+    def warnings_seen():
+        sv.mark_warnings_seen(get_db(), g.user["id"])
+        back = request.form.get("next")
+        return redirect(back if is_safe_next(back) else url_for("account_activity"))
+
+    @app.post("/conta/concelho")
+    @login_required
+    def change_territory():
+        db = get_db()
+        back = request.form.get("next")
+        back = back if is_safe_next(back) else url_for("settings")
+        try:
+            municipality = sv.set_territory(db, g.user, request.form, app.config.get("GEO_CACHE_DIR") or app.instance_path)
+        except sv.ValidationError as exc:
+            flash(" ".join(exc.errors.values()), "danger")
+            return redirect(back)
+        if territory.is_active(municipality):
+            flash(f"Concelho atualizado: {municipality}.", "success")
+        else:
+            flash(f"Concelho atualizado: {municipality}. O Townly Up ainda não está disponível neste concelho.", "info")
+        return redirect(back)
+
+    @app.get("/conta/atividade")
+    @login_required
+    def account_activity():
+        """Atividade da conta: acessos, ocorrências, confirmações e pontos (mais recentes primeiro)."""
+        db = get_db()
+        uid = g.user["id"]
+        user = db.execute("SELECT created_at, last_login_at FROM users WHERE id = ?", (uid,)).fetchone()
+        events = []
+        for r in db.execute("SELECT id, ticket, title, created_at FROM incidents WHERE author_id = ? AND deleted_at IS NULL "
+                            "ORDER BY id DESC LIMIT 30", (uid,)):
+            events.append({"at": r["created_at"], "kind": "report", "text": f"Comunicou {r['ticket']} — {r['title']}",
+                           "url": url_for("incident_detail", incident_id=r["id"])})
+        for r in db.execute("""SELECT f.kind, f.created_at, i.ticket FROM confirmations f JOIN incidents i ON i.id = f.incident_id
+                               WHERE f.user_id = ? ORDER BY f.id DESC LIMIT 30""", (uid,)):
+            events.append({"at": r["created_at"], "kind": "confirm",
+                           "text": ("Confirmou «Eu também vi» em " if r["kind"] == "seen" else "Indicou que está resolvida: ") + r["ticket"]})
+        for r in db.execute("""SELECT h.new_status, h.changed_at, i.ticket, i.id FROM status_history h JOIN incidents i ON i.id = h.incident_id
+                               WHERE h.actor_id = ? AND h.previous_status IS NOT NULL ORDER BY h.id DESC LIMIT 30""", (uid,)):
+            events.append({"at": r["changed_at"], "kind": "status", "text": f"Mudou {r['ticket']} para «{r['new_status']}»",
+                           "url": url_for("admin_incident", incident_id=r["id"]) if g.user["role"] != "citizen" else None})
+        events.sort(key=lambda e: str(e["at"]), reverse=True)
+        points = cm.recent_points(db, uid, limit=15) if g.user["role"] == "citizen" else []
+        return render_template("account_activity.html", user=user, events=events[:40], points=points,
+                               warnings=sv.warnings_for(db, uid))
 
     @app.post("/admin/incidents/<int:incident_id>/status")
     @role_required("admin", "staff")
@@ -776,6 +1105,46 @@ def register_cli(app):
                        "WHERE id = ?", (name.strip() or "Townly Up", email, hash_password(password), main["id"]))
         click.echo(f"Conta principal reposta: {main['email']} → {email}. Já pode entrar com a nova palavra-passe.")
 
+    @app.cli.command("apagar-tudo")
+    @click.option("--sim", is_flag=True, help="Não pedir confirmação (só para testes).")
+    def wipe_everything(sim):
+        """APAGA todas as contas (incluindo a principal) e tudo o que criaram: ocorrências, fotografias, alertas, pontos.
+        Ficam só as freguesias, entidades e categorias. Não se pode desfazer."""
+        init_db()
+        db = get_db()
+        n_users = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        n_inc = db.execute("SELECT COUNT(*) FROM incidents").fetchone()[0]
+        click.echo(f"Vai apagar {n_users} conta(s) e {n_inc} ocorrência(s), com fotografias, alertas e pontos.")
+        if not sim and click.prompt("Escreva APAGAR para confirmar", default="", show_default=False).strip() != "APAGAR":
+            click.echo("Cancelado — nada foi apagado.")
+            raise SystemExit(1)
+        wipe_all(db)
+        for folder in ("outbox", "sms_outbox"):
+            path = os.path.join(app.instance_path, folder)
+            if os.path.isdir(path):
+                for name in os.listdir(path):
+                    os.remove(os.path.join(path, name))
+        click.echo(f"Apagado: {n_users} conta(s) e {n_inc} ocorrência(s). Os próximos tickets recomeçam em TU-AAAA-0001.")
+
+    @app.cli.command("apagar-contas-camara")
+    @click.option("--sim", is_flag=True, help="Não pedir confirmação (só para testes).")
+    def wipe_council_accounts(sim):
+        """APAGA todas as contas da Câmara e das entidades (incluindo a conta principal). As contas dos munícipes e as
+        ocorrências ficam. Depois crie a nova conta principal com: flask --app app repor-admin"""
+        init_db()
+        db = get_db()
+        rows = db.execute("SELECT email, role FROM users WHERE role IN ('admin', 'staff') AND deleted_at IS NULL ORDER BY id").fetchall()
+        if not rows:
+            click.echo("Não há contas da Câmara para apagar.")
+            return
+        for r in rows:
+            click.echo(f"  {r['email']}  ({'conta principal' if r['role'] == 'admin' else 'entidade'})")
+        if not sim and click.prompt(f"Vai apagar {len(rows)} conta(s). Escreva APAGAR para confirmar", default="", show_default=False).strip() != "APAGAR":
+            click.echo("Cancelado — nada foi apagado.")
+            raise SystemExit(1)
+        gone = sv.delete_council_accounts(db)
+        click.echo(f"Apagadas {len(gone)} conta(s). Para criar a nova conta principal: duplo clique em repor_conta_principal.command")
+
     @app.cli.command("contas-teste")
     @click.option("--password", default="TownlyTeste2026", show_default=True, help="Palavra-passe de todas as contas de teste.")
     @click.option("--remover", is_flag=True, help="Desativa todas as contas @townlyup.test.")
@@ -813,6 +1182,30 @@ def register_cli(app):
         sv.create_user(db, os.environ.get("ADMIN_NAME", "Townly Up"), email,
                        hash_password(password), role="admin", organization_id=sv.organization_by(db, "camara")["id"])
         click.echo(f"Conta da Câmara {email} criada.")
+
+
+USER_DATA_TABLES = ("notifications", "points_log", "confirmations", "status_history", "incident_images", "resolution_ratings",
+                    "moderation_events", "user_warnings", "user_parishes", "entity_requests", "incidents", "users")
+
+
+def wipe_all(db):
+    """Apaga todos os dados criados por pessoas (pela ordem das chaves estrangeiras) e reinicia a numeração."""
+    with db:
+        if db.dialect == "postgres":
+            db.execute("TRUNCATE " + ", ".join(USER_DATA_TABLES) + " RESTART IDENTITY CASCADE")
+        else:
+            # As regras «histórico imutável» e «ocorrências não se apagam» são triggers: suspendem-se só aqui.
+            triggers = db.execute("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' "
+                                  "AND tbl_name IN ('status_history', 'incidents')").fetchall()
+            for t in triggers:
+                db.execute(f'DROP TRIGGER "{t["name"]}"')
+            db.execute("UPDATE incidents SET similar_to = NULL")
+            for table in USER_DATA_TABLES:
+                db.execute(f"DELETE FROM {table}")
+            for t in triggers:
+                db.execute(t["sql"])
+            db.execute("DELETE FROM sqlite_sequence WHERE name IN (" + ",".join("?" * len(USER_DATA_TABLES)) + ")",
+                       USER_DATA_TABLES)
 
 
 TEST_DOMAIN = "townlyup.test"  # domínio reservado para testes: nunca é um email real

@@ -2,131 +2,167 @@
 {% from "_macros.html" import field_error, invalid, avatar, reveal %}
 {% block title %}A minha conta{% endblock %}
 {% block content %}
-<div class="tu-page-head"><div><div class="tu-eyebrow">Perfil</div><h1>A minha conta</h1></div></div>
-
-<div class="tu-profile">
-  {# ---------------------------------------------------------------- Cartão de perfil + fotografia #}
-  <section class="tu-profile-card">
+{# Perfil: tudo o que é da conta num só sítio (fotografia, dados, palavra-passe, atividade, privacidade e sair). #}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+{% set chev = '<svg class="tu-s-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' %}
+{% set pf = profile_form or {} %}
+<div class="tu-s tu-p">
+  {# ---------------------------------------------------------------- Cabeçalho: fotografia, nome e números #}
+  <section class="tu-p-head">
     <form method="post" action="{{ url_for('account_avatar') }}" enctype="multipart/form-data" id="avatar-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="tu-avatar-edit">
-        <div class="tu-avatar-frame" id="avatar-frame">{{ avatar(g.user, 120, 'tu-avatar-xl') }}</div>
+        <div class="tu-avatar-frame" id="avatar-frame">{{ avatar(g.user, 96, 'tu-avatar-xl') }}</div>
         <label class="tu-avatar-camera" for="avatar-input" title="Escolher fotografia">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
           <span class="visually-hidden">Escolher fotografia</span>
         </label>
-        <input type="file" id="avatar-input" name="avatar" accept="image/jpeg,image/png,image/webp" class="visually-hidden">
+        <input type="file" id="avatar-input" name="avatar" accept="image/*,.heic,.heif,.avif" class="visually-hidden">
       </div>
-
-      <h2 class="tu-profile-name">{{ g.user.name }}</h2>
-      <p class="tu-profile-role">{{ ROLE_LABELS[g.user.role] }}{% if g.user.org_name %} · {{ g.user.org_name }}{% endif %}</p>
+      <h1 class="tu-p-name">{{ g.user.name }}</h1>
+      <p class="tu-p-sub">{{ ROLE_LABELS[g.user.role] }}{% if g.user.role == 'staff' and g.user.org_name %} · {{ g.user.org_name }}{% elif g.user.municipality and g.user.role == 'citizen' %} · {{ g.user.municipality }}{% endif %}</p>
+      {% if profile.level %}<p class="tu-p-level">Nível {{ profile.level.number }} · {{ profile.level.name }}</p>{% endif %}
 
       <div class="tu-avatar-actions" id="avatar-actions">
-        <label class="btn btn-outline-primary btn-sm" for="avatar-input">{{ 'Alterar fotografia' if g.user.avatar_updated_at else 'Adicionar fotografia' }}</label>
-        {% if g.user.avatar_updated_at %}
-          <button class="btn btn-link btn-sm tu-avatar-remove" type="submit" name="action" value="remover">Remover</button>
-        {% endif %}
+        <label class="tu-a-btn" for="avatar-input">{{ 'Alterar fotografia' if g.user.avatar_updated_at else 'Adicionar fotografia' }}</label>
+        {% if g.user.avatar_updated_at %}<button class="tu-a-btn" type="submit" name="action" value="remover">Remover</button>{% endif %}
       </div>
       <div class="tu-avatar-actions" id="avatar-confirm" hidden>
-        <button class="btn btn-primary btn-sm" type="submit" name="action" value="guardar">Guardar fotografia</button>
-        <button class="btn btn-link btn-sm" type="button" id="avatar-cancel">Cancelar</button>
+        <button class="tu-a-btn is-primary" type="submit" name="action" value="guardar">Guardar fotografia</button>
+        <button class="tu-a-btn" type="button" id="avatar-cancel">Cancelar</button>
       </div>
-      <p class="tu-avatar-help" id="avatar-help">JPEG, PNG ou WebP até 5 MB. A imagem é cortada em quadrado e os dados de localização são removidos.</p>
+      <p class="tu-avatar-help" id="avatar-help" hidden></p>
     </form>
-
-    <dl class="tu-profile-meta">
-      <div><dt>Email</dt><dd>{{ g.user.email }}</dd></div>
-      {% if g.user.created_at %}<div><dt>Membro desde</dt><dd>{{ g.user.created_at|local('%d/%m/%Y') }}</dd></div>{% endif %}
+    <dl class="tu-p-stats">
+      {% for n, label in profile.stats %}<div><dt>{{ n }}</dt><dd>{{ label }}</dd></div>{% endfor %}
     </dl>
   </section>
 
-  {# ---------------------------------------------------------------- Dados da conta #}
-  {% set pf = profile_form or {} %}
-  <section class="tu-card tu-profile-section"><div class="card-body">
-    <h2 class="tu-section">Dados da conta</h2>
-    <form method="post" action="{{ url_for('account_profile') }}" novalidate id="profile-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="row g-3 mb-3">
-        <div class="col-sm-6">
+  {# ---------------------------------------------------------------- Conta #}
+  <section>
+    <h2 class="tu-s-sec">Conta</h2>
+    <div class="tu-s-list">
+      <details class="tu-a-more" id="dados" {{ 'open' if errors.get('name') or errors.get('email') or errors.get('current_for_email') }}>
+        <summary class="tu-s-row">
+          <svg class="tu-s-ico" {{ ico|safe }}><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6"/></svg>
+          <span><b>Nome e email</b><small>{{ g.user.email }}</small></span>{{ chev|safe }}
+        </summary>
+        <form method="post" action="{{ url_for('account_profile') }}" novalidate id="profile-form" class="tu-a-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label class="form-label" for="p-name">Nome</label>
           <input class="form-control{{ invalid(errors, 'name') }}" id="p-name" name="name" value="{{ pf.get('name', g.user.name) }}" maxlength="100" required>
           {{ field_error(errors, 'name') }}
-        </div>
-        <div class="col-sm-6">
-          <label class="form-label" for="p-email">Email (para entrar)</label>
+          <label class="form-label mt-2" for="p-email">Email (para entrar)</label>
           <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="p-email" name="email" value="{{ pf.get('email', g.user.email) }}" maxlength="120" required data-original="{{ g.user.email }}">
           {{ field_error(errors, 'email') }}
-        </div>
-      </div>
-      <div class="mb-3" id="p-current-wrap" {{ '' if errors.get('current_for_email') or pf.get('email', g.user.email) != g.user.email else 'hidden' }}>
-        <label class="form-label" for="p-current">Palavra-passe atual <small class="text-muted">(obrigatória para mudar o email)</small></label>
-        <div class="tu-field-reveal">
-          <input class="form-control{{ invalid(errors, 'current_for_email') }}" type="password" id="p-current" name="current_for_email" autocomplete="current-password">
-          {{ reveal('p-current') }}
-        </div>
-        {{ field_error(errors, 'current_for_email') }}
-      </div>
-      {% if g.user.role == 'staff' %}
-      <div class="row g-3 mb-3 align-items-end">
-        <div class="col-sm-6">
-          <label class="form-label" for="p-phone">Telemóvel</label>
-          <input class="form-control{{ invalid(errors, 'phone') }}" type="tel" id="p-phone" name="phone" inputmode="tel" placeholder="912 345 678" value="{{ pf.get('phone', g.user.phone or '') }}">
-          {{ field_error(errors, 'phone') }}
-        </div>
-        <div class="col-sm-6">
-          <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" role="switch" id="p-sms" name="sms_alerts" value="1" {{ 'checked' if (pf.get('sms_alerts') if pf else g.user.sms_alerts) }}>
-            <label class="form-check-label" for="p-sms">Receber SMS de novas ocorrências{% if g.user.org_kind == 'junta' %} na minha freguesia{% endif %}</label>
+          <div class="mt-2" id="p-current-wrap" {{ '' if errors.get('current_for_email') or pf.get('email', g.user.email) != g.user.email else 'hidden' }}>
+            <label class="form-label" for="p-current">Palavra-passe atual <small class="text-muted">(para mudar o email)</small></label>
+            <div class="tu-field-reveal">
+              <input class="form-control{{ invalid(errors, 'current_for_email') }}" type="password" id="p-current" name="current_for_email" autocomplete="current-password">
+              {{ reveal('p-current') }}
+            </div>
+            {{ field_error(errors, 'current_for_email') }}
           </div>
-        </div>
-      </div>
-      {% endif %}
-      <button class="btn btn-primary" type="submit">Guardar dados</button>
-    </form>
-  </div></section>
+          <button class="tu-s-btn mt-3" type="submit">Guardar</button>
+        </form>
+      </details>
 
-  {# ---------------------------------------------------------------- Palavra-passe #}
-  <section class="tu-card tu-profile-section"><div class="card-body">
-    <h2 class="tu-section">{{ 'Mudar a palavra-passe' if has_password else 'Criar uma palavra-passe' }}</h2>
-    <form method="post" novalidate>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      {% if has_password %}
-      <div class="mb-3">
-        <label class="form-label" for="current">Palavra-passe atual</label>
-        <div class="tu-field-reveal">
-          <input class="form-control{{ invalid(errors, 'current') }}" type="password" id="current" name="current" autocomplete="current-password" required>
-          {{ reveal('current') }}
-        </div>
-        {{ field_error(errors, 'current') }}
-      </div>
-      {% endif %}
-      <div class="row g-3 mb-1">
-        <div class="col-sm-6">
-          <label class="form-label" for="password">Nova</label>
+      <details class="tu-a-more" id="palavra-passe" {{ 'open' if errors.get('current') or errors.get('password') or errors.get('confirm') }}>
+        <summary class="tu-s-row">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+          <span><b>{{ 'Mudar a palavra-passe' if has_password else 'Criar uma palavra-passe' }}</b><small>Mínimo 8 caracteres, com letras e números</small></span>{{ chev|safe }}
+        </summary>
+        <form method="post" novalidate class="tu-a-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if has_password %}
+          <label class="form-label" for="current">Palavra-passe atual</label>
+          <div class="tu-field-reveal">
+            <input class="form-control{{ invalid(errors, 'current') }}" type="password" id="current" name="current" autocomplete="current-password" required>
+            {{ reveal('current') }}
+          </div>
+          {{ field_error(errors, 'current') }}
+          {% endif %}
+          <label class="form-label mt-2" for="password">Nova palavra-passe</label>
           <div class="tu-field-reveal">
             <input class="form-control{{ invalid(errors, 'password') }}" type="password" id="password" name="password" autocomplete="new-password" required>
             {{ reveal('password') }}
           </div>
           {{ field_error(errors, 'password') }}
-        </div>
-        <div class="col-sm-6">
-          <label class="form-label" for="confirm">Confirmar</label>
+          <label class="form-label mt-2" for="confirm">Confirmar</label>
           <div class="tu-field-reveal">
             <input class="form-control{{ invalid(errors, 'confirm') }}" type="password" id="confirm" name="confirm" autocomplete="new-password" required>
             {{ reveal('confirm') }}
           </div>
           {{ field_error(errors, 'confirm') }}
-        </div>
-      </div>
-      <div class="form-text mb-3">Mínimo 8 caracteres, com letras e números.</div>
-      <button class="btn btn-primary" type="submit">Guardar palavra-passe</button>
-    </form>
-  </div></section>
+          <button class="tu-s-btn mt-3" type="submit">Guardar palavra-passe</button>
+        </form>
+      </details>
+
+      <a class="tu-s-row" href="{{ url_for('account_activity') }}">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+        <span><b>Atividade da conta</b><small>Acessos, ocorrências e pontos{% if g.user.created_at %} · desde {{ g.user.created_at|local('%d/%m/%Y') }}{% endif %}</small></span>{{ chev|safe }}
+      </a>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- Atalhos da conta #}
+  <section>
+    <h2 class="tu-s-sec">{{ 'A minha participação' if g.user.role == 'citizen' else 'Trabalho' }}</h2>
+    <div class="tu-s-list">
+      {% if g.user.role == 'citizen' %}
+        <a class="tu-s-row" href="{{ url_for('citizen_dashboard') }}">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg>
+          <span><b>Minhas ocorrências</b></span>{{ chev|safe }}</a>
+        <a class="tu-s-row" href="{{ url_for('settings') }}#concelho">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+          <span><b>O meu concelho</b><small>{{ g.user.municipality or '—' }}</small></span>{{ chev|safe }}</a>
+      {% else %}
+        <a class="tu-s-row" href="{{ url_for('admin_dashboard') }}">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg>
+          <span><b>{{ 'Todas as ocorrências' if g.user.role == 'admin' else 'Ocorrências da Câmara' }}</b></span>{{ chev|safe }}</a>
+      {% endif %}
+      <a class="tu-s-row" href="{{ url_for('notifications_page') }}">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg>
+        <span><b>Alertas</b></span>{% if unread_count %}<em class="tu-sb-badge">{{ unread_count }}</em>{% endif %}{{ chev|safe }}</a>
+      <a class="tu-s-row" href="{{ url_for('settings') }}">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span><b>Definições</b><small>Notificações, tema e idioma</small></span>{{ chev|safe }}</a>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- Privacidade #}
+  <section>
+    <h2 class="tu-s-sec">Privacidade</h2>
+    <div class="tu-s-list">
+      <a class="tu-s-row" href="{{ url_for('settings_export') }}" download>
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
+        <span><b>Descarregar os meus dados</b></span>{{ chev|safe }}</a>
+      <a class="tu-s-row" href="{{ url_for('privacy') }}">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 3.5 5 6.5v5c0 4.2 3 7.8 7 9 4-1.2 7-4.8 7-9v-5z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span><b>Política de privacidade</b></span>{{ chev|safe }}</a>
+      {% if g.user.role == 'citizen' %}
+      <a class="tu-s-row tu-p-danger" href="{{ url_for('settings') }}#privacidade">
+        <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
+        <span><b>Apagar a minha conta</b></span>{{ chev|safe }}</a>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- Sair #}
+  <form method="post" action="{{ url_for('logout') }}" class="tu-s-list tu-p-logout">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="tu-s-row" type="submit">
+      <svg class="tu-s-ico" {{ ico|safe }}><path d="M10 4.5H5.5v15H10M15 16l4-4-4-4M19 12H9"/></svg>
+      <span><b>Terminar sessão</b></span>
+    </button>
+  </form>
 </div>
 {% endblock %}
 {% block scripts %}
 {% include "_auth_scripts.html" %}
 <script>
+  // Abre a secção pedida no endereço (#dados ou #palavra-passe).
+  { const d = document.getElementById(location.hash.slice(1)); if (d && d.tagName === 'DETAILS') d.open = true; }
   // Mudar o email pede a palavra-passe atual: o campo só aparece quando o email muda.
   (function () {
     const email = document.getElementById('p-email');
@@ -142,26 +178,49 @@
     const help = document.getElementById('avatar-help');
     const original = frame.innerHTML;
     const helpText = help.textContent;
-    input.addEventListener('change', () => {
-      const file = input.files[0];
+    // Aceita qualquer imagem: o navegador converte-a já aqui num JPEG quadrado (HEIC do iPhone, PNG, GIF, AVIF…),
+    // o que também torna o envio rápido. Se o navegador não a souber ler, segue como está e o servidor trata dela.
+    async function toSquareJpeg(file) {
+      let bmp;
+      try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch (e) {
+        bmp = await new Promise((ok, fail) => { const im = new Image(); im.onload = () => ok(im); im.onerror = fail; im.src = URL.createObjectURL(file); });
+      }
+      const w = bmp.width, h = bmp.height, side = Math.min(w, h), size = Math.min(800, side);
+      const sx = (w - side) / 2, sy = Math.max(0, Math.min(h - side, (h - side) * 0.4));
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(bmp, sx, sy, side, side, 0, 0, size, size);
+      const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.9));
+      if (!blob) throw new Error('sem conversão');
+      return new File([blob], 'perfil.jpg', { type: 'image/jpeg' });
+    }
+    input.addEventListener('change', async () => {
+      let file = input.files[0];
       if (!file) return;
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
-        help.textContent = 'Escolha uma imagem JPEG, PNG ou WebP até 5 MB.';
+      help.classList.remove('is-error'); help.hidden = false;
+      help.textContent = 'A preparar a fotografia…';
+      try {
+        const jpg = await toSquareJpeg(file);
+        const dt = new DataTransfer(); dt.items.add(jpg); input.files = dt.files; file = jpg;
+      } catch (e) { /* o navegador não lê este formato: o servidor converte */ }
+      if (file.size > 18 * 1024 * 1024) {
+        help.textContent = 'Esta imagem é demasiado grande (máximo 18 MB).';
         help.classList.add('is-error'); input.value = ''; return;
       }
       const img = document.createElement('img');
       img.className = 'tu-avatar tu-avatar-img tu-avatar-xl is-preview';
       img.alt = 'Pré-visualização';
       img.src = URL.createObjectURL(file);
+      img.onerror = () => { img.replaceWith(Object.assign(document.createElement('span'), { className: 'tu-avatar tu-avatar-xl', textContent: '✓' })); };
       frame.replaceChildren(img);
       actions.hidden = true; confirm.hidden = false;
       help.textContent = 'Pré-visualização — carregue em «Guardar fotografia» para confirmar.';
-      help.classList.remove('is-error');
     });
     document.getElementById('avatar-cancel').addEventListener('click', () => {
       input.value = ''; frame.innerHTML = original;
       actions.hidden = false; confirm.hidden = true;
-      help.textContent = helpText;
+      help.textContent = helpText; help.hidden = true;
     });
   })();
 </script>

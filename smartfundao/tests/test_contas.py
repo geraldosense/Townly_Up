@@ -83,11 +83,12 @@ def test_site_vazio_so_mostra_conteudo_dos_utilizadores(client):
     login(client, "ana@teste.pt")
     create_incident(client)
     client.post("/logout")
-    assert "TU-20" in client.get("/").get_data(as_text=True)
+    assert "TU-20" in client.get("/api/v1/map").get_data(as_text=True)
+    assert 'Não basta ver.<br>É preciso comunicar.' in client.get("/").get_data(as_text=True)
 
 
 def test_paginas_da_comunidade_e_rodape(client):
-    for url, text in [("/freguesias", "As 23 freguesias"), ("/como-funciona", "Como funciona o Townly Up"),
+    for url, text in [("/freguesias", "As 23 freguesias"), ("/como-funciona", "Viu um problema na rua?"),
                       ("/regras", "Regras da comunidade"), ("/privacidade", "Privacidade e dados")]:
         html = client.get(url).get_data(as_text=True)
         assert text in html, url

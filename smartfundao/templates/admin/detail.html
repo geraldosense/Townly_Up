@@ -11,6 +11,19 @@
       <i class="bi bi-person"></i> Comunicada por <b>{{ incident.author_name }}</b>
       {% if incident.assigned_name %} · Última atualização por <b>{{ incident.assigned_name }}</b> em {{ incident.updated_at|local }}{% endif %}
     </div></div>
+    {% if ratings %}
+    <div class="tu-card mt-3"><div class="card-body">
+      <h2 class="tu-section mb-2">Avaliação do munícipe</h2>
+      {% for r in ratings %}
+        <div class="{{ 'mt-3 pt-3 border-top' if not loop.first }}">
+          <div class="tu-stars is-static" aria-label="{{ r.stars }} de 5">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= r.stars }}">★</span>{% endfor %}</div>
+          {% if r.reopened %}<span class="badge text-bg-danger ms-2">Reaberta</span>{% endif %}
+          {% if r.comment %}<p class="small mb-0 mt-1">«{{ r.comment }}»</p>{% endif %}
+          <small class="text-muted">{{ r.created_at|local }}</small>
+        </div>
+      {% endfor %}
+    </div></div>
+    {% endif %}
   </div>
 
   <div class="col-lg-5">
@@ -84,7 +97,7 @@
             {{ field_error(errors, 'note') }}
           </div>
           <div class="mb-3" id="resolution-box">
-            <label class="form-label small" for="resolution_photo">Fotografia da resolução (opcional, só ao resolver)</label>
+            <label class="form-label small" for="resolution_photo">Fotografia da resolução (opcional, só ao resolver — aparece em «Antes e depois»)</label>
             <input class="form-control form-control-sm{{ invalid(errors, 'resolution_photo') }}" type="file" id="resolution_photo" name="resolution_photo" accept="image/jpeg,image/png,image/webp">
             {{ field_error(errors, 'resolution_photo') }}
           </div>

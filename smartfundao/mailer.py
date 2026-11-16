@@ -113,7 +113,9 @@ def send_async(*args):
 
 # ------------------------------------------------------------------ emails da aplicação
 def incident_receipt(app, author, incident, incident_url):
-    """Comprovativo imediato: número de referência, resumo e próximos passos."""
+    """Comprovativo imediato: número de referência, resumo e próximos passos (se a pessoa não o desligou)."""
+    if "email_receipts" in author.keys() and not author["email_receipts"]:
+        return
     maps = f"https://www.google.com/maps/search/?api=1&query={incident['latitude']},{incident['longitude']}"
     ctx = {"author": author, "incident": incident, "incident_url": incident_url, "maps_url": maps,
            "first_name": author["name"].split()[0]}

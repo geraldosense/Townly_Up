@@ -7,7 +7,7 @@
     <div class="tu-eyebrow">Olá, {{ g.user.name.split()[0] }}</div>
     <h1>As minhas ocorrências</h1>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
+  <a class="btn btn-primary tu-desktop-only" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>
 </div>
 
 <div class="mb-4" style="max-width: 640px">{% with lvl = my_level %}{% include "_level_card.html" %}{% endwith %}</div>

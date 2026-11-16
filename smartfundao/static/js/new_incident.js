@@ -59,16 +59,26 @@
   next.addEventListener('click', () => { if (valid(step)) show(step + 1); });
   prev.addEventListener('click', () => show(Math.max(1, step - 1)));
 
-  // Escolher a categoria avança logo para o passo 2 (menos toques).
+  // Escolher a categoria mostra os subtipos (logo abaixo); escolher o subtipo avança para o passo 2.
+  // Categorias sem subtipos (ou só «Outro») avançam logo, como antes.
   form.querySelectorAll('input[name="category_id"]').forEach(r =>
-    r.addEventListener('change', () => setTimeout(() => show(2), 180)));
+    r.addEventListener('change', () => {
+      const group = form.querySelector(`.tu-subcat-group[data-cat="${r.value}"]`);
+      const options = group ? group.querySelectorAll('input') : [];
+      if (options.length <= 1) { if (options[0]) options[0].checked = true; setTimeout(() => show(2), 180); return; }
+      setTimeout(() => document.getElementById('subcats').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 60);
+    }));
+  form.querySelectorAll('input[name="subcategory_id"]').forEach(r =>
+    r.addEventListener('change', () => setTimeout(() => show(2), 220)));
 
   // ------------------------------------------------------------ fotografias
   // A câmara, a galeria e a pré-visualização estão em photos.js (que preenche #photos).
 
   function summary() {
     const cat = form.querySelector('input[name="category_id"]:checked');
-    const label = cat ? form.querySelector(`label[for="${cat.id}"]`).textContent.trim() : '—';
+    const sub = form.querySelector('input[name="subcategory_id"]:checked:not(:disabled)');
+    const label = (cat ? form.querySelector(`label[for="${cat.id}"]`).textContent.trim() : '—') +
+                  (sub ? ' › ' + sub.nextElementSibling.textContent.trim() : '');
     document.getElementById('summary').textContent =
       `Resumo: ${label} · ${photos.files.length} fotografia(s) · «${document.getElementById('description').value.trim().slice(0, 60)}»`;
   }

@@ -77,12 +77,17 @@ class Database:
         self._depth = 0
         if url.startswith(("postgres://", "postgresql://")):
             self.dialect = "postgres"
-            self.conn = pg_connect(url)
+            self.conn = _pool_take(url)
         else:
             self.dialect = "sqlite"
             path = url.split("sqlite:///", 1)[-1] if url.startswith("sqlite:") else url
-            self.conn = sqlite3.connect(path, isolation_level=None)  # autocommit; transações explícitas
+            self.conn = sqlite3.connect(path, isolation_level=None, timeout=10)  # autocommit; transações explícitas
             self.conn.execute("PRAGMA foreign_keys = ON")
+            # Muitos acessos ao mesmo tempo: leituras não bloqueiam escritas (WAL) e espera-se em vez de falhar.
+            self.conn.execute("PRAGMA busy_timeout = 10000")
+            if path != ":memory:":
+                self.conn.execute("PRAGMA journal_mode = WAL")
+                self.conn.execute("PRAGMA synchronous = NORMAL")
 
     # ------------------------------------------------------------ SQL
     def _sql(self, sql):
@@ -134,7 +139,44 @@ class Database:
         return False
 
     def close(self):
-        self.conn.close()
+        if self.dialect == "postgres" and self._depth == 0:
+            _pool_give(self.url, self.conn)
+        else:
+            self.conn.close()
+
+
+# ---------------------------------------------------------------- Reserva de ligações (PostgreSQL)
+# Abrir uma ligação ao PostgreSQL custa dezenas de milissegundos. Com milhares de utilizadores, cada pedido
+# reutiliza uma ligação já aberta (até POOL_SIZE em espera), em vez de abrir e fechar uma nova.
+import threading as _threading
+
+POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "10"))
+_pools, _pool_lock = {}, _threading.Lock()
+
+
+def _pool_take(url):
+    with _pool_lock:
+        free = _pools.get(url) or []
+        while free:
+            conn = free.pop()
+            if not getattr(conn, "closed", False):
+                return conn
+    return pg_connect(url)
+
+
+def _pool_give(url, conn):
+    info = getattr(conn, "info", None)          # psycopg 3; outros controladores não ficam em reserva
+    idle = info is not None and not getattr(conn, "closed", False) and getattr(info, "transaction_status", 1) == 0
+    if idle and POOL_SIZE > 0:
+        with _pool_lock:
+            free = _pools.setdefault(url, [])
+            if len(free) < POOL_SIZE:
+                free.append(conn)
+                return
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 
 def pg_connect(url):

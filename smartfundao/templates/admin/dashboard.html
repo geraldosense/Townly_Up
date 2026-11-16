@@ -1,125 +1,88 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status_badge %}
-{% block title %}Painel municipal{% endblock %}
-{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block title %}Ocorrências{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
 {% block content %}
-<div class="tu-page-head">
-  <div>
-    <div class="tu-eyebrow">{{ g.user.org_name or 'Central municipal' }}</div>
-    <h1>{{ 'Painel municipal' if g.user.role == 'admin' else 'Ocorrências da entidade' }}</h1>
-  </div>
-  <span class="small text-muted">{{ g.user.name }} · {{ ROLE_LABELS[g.user.role] }}</span>
-</div>
+{# Lista de ocorrências para tratar (Câmara) ou supervisionar (conta principal): estados, pesquisa e lista simples. #}
+<div class="tu-s tu-a tu-d">
+  <header class="tu-s-head">
+    <p>{{ 'Plataforma Townly Up' if g.user.role == 'admin' else (g.user.org_name or 'Câmara Municipal') }}</p>
+    <h1>{{ 'Todas as ocorrências' if g.user.role == 'admin' else 'Ocorrências' }}</h1>
+  </header>
 
-<!-- RF12 / UC07: contagens por estado -->
-{% set icons = {'Registada': 'inbox', 'Em análise': 'search', 'Em tratamento': 'tools',
-                'Resolvida': 'check2-circle', 'Rejeitada': 'x-circle', 'Duplicada': 'files'} %}
-<div class="row g-2 mb-4">
-  {% for s in ALL_STATUSES %}
-  <div class="col-6 col-md-4 col-xl-2">
-    <a class="tu-stat st-{{ s|slug }} {{ 'active' if filters.status == s }}" href="{{ url_for('admin_dashboard', status=s, view='todas') }}">
-      <span class="tu-stat-icon"><i class="bi bi-{{ icons[s] }}"></i></span>
-      <span><span class="tu-stat-n d-block">{{ counts[s] }}</span><span class="tu-stat-l">{{ s }}</span></span>
-    </a>
-  </div>
-  {% endfor %}
-</div>
+  {# Estados: tocar filtra a lista #}
+  <nav class="tu-d-states" aria-label="Filtrar por estado">
+    <a href="{{ url_for('admin_dashboard') }}" class="{{ 'is-on' if not filters.status and filters.view == 'ativas' }}"><b>{{ counts['Registada'] + counts['Em análise'] + counts['Em tratamento'] }}</b>Por resolver</a>
+    {% for s in ALL_STATUSES %}
+      <a href="{{ url_for('admin_dashboard', status=s, view='todas') }}" class="st-{{ s|slug }} {{ 'is-on' if filters.status == s }}"><b>{{ counts[s] }}</b>{{ s }}</a>
+    {% endfor %}
+  </nav>
 
-<div class="row g-3">
-  <div class="col-xl-8">
-    <div class="tu-card">
-      <div class="card-body">
-        <form class="row g-2 align-items-end mb-3" method="get">
-          <div class="col-12 col-md-auto">
-            <div class="btn-group w-100" role="group" aria-label="Vista">
-              {% for v, label in [('ativas', 'Ativas'), ('arquivo', 'Arquivo'), ('todas', 'Todas')] %}
-                <input type="radio" class="btn-check" name="view" id="view-{{ v }}" value="{{ v }}" {{ 'checked' if filters.view == v }} onchange="this.form.submit()">
-                <label class="btn btn-outline-primary btn-sm" for="view-{{ v }}">{{ label }}</label>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-6 col-md">
-            <label class="form-label small mb-0" for="f-status">Estado</label>
-            <select class="form-select form-select-sm" id="f-status" name="status">
-              <option value="">Todos</option>
-              {% for s in ALL_STATUSES %}<option {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-6 col-md">
-            <label class="form-label small mb-0" for="f-cat">Categoria</label>
-            <select class="form-select form-select-sm" id="f-cat" name="category_id">
-              <option value="">Todas</option>
-              {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if filters.category_id == c.id|string }}>{{ c.name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-6 col-md">
-            <label class="form-label small mb-0" for="f-parish">Freguesia</label>
-            <select class="form-select form-select-sm" id="f-parish" name="parish">
-              <option value="">Todas</option>
-              {% for p in parishes %}<option value="{{ p.code }}" {{ 'selected' if filters.parish == p.code }}>{{ p.short_name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-6 col-md">
-            <label class="form-label small mb-0" for="f-sort">Ordenar</label>
-            <select class="form-select form-select-sm" id="f-sort" name="sort">
-              <option value="recentes" {{ 'selected' if filters.sort != 'confirmadas' }}>Mais recentes</option>
-              <option value="confirmadas" {{ 'selected' if filters.sort == 'confirmadas' }}>Mais confirmadas</option>
-            </select>
-          </div>
-          <div class="col-6 col-md">
-            <label class="form-label small mb-0" for="f-q">Pesquisa</label>
-            <input class="form-control form-control-sm" id="f-q" name="q" value="{{ filters.q }}" placeholder="Ticket, título…">
-          </div>
-          <div class="col-12 col-md-auto d-flex gap-1">
-            <button class="btn btn-primary btn-sm flex-grow-1" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_dashboard') }}" title="Limpar"><i class="bi bi-x-lg"></i></a>
-          </div>
-        </form>
-
-        <div class="table-responsive">
-          <table class="table align-middle tu-table mb-0">
-            <thead><tr><th>Ticket</th><th>Descrição</th><th class="d-none d-md-table-cell">Categoria</th><th class="d-none d-xl-table-cell">Freguesia · Entidade</th><th title="Munícipes que confirmaram"><i class="bi bi-people-fill"></i></th><th>Estado</th><th class="d-none d-sm-table-cell">Data</th></tr></thead>
-            <tbody>
-              {% for i in incidents %}
-                <tr onclick="location.href='{{ url_for('admin_incident', incident_id=i.id) }}'" role="link">
-                  <td class="text-nowrap"><a class="fw-semibold" href="{{ url_for('admin_incident', incident_id=i.id) }}">{{ i.ticket }}</a></td>
-                  <td>{{ i.title }}{% if i.priority == 'Alta' %} <span class="badge rounded-pill text-bg-danger ms-1">Alta</span>{% endif %}</td>
-                  <td class="d-none d-md-table-cell small">{% set st = category_style(i.category) %}<i class="bi bi-{{ st.icon }}" style="color: {{ st.color }}"></i> {{ i.category }}</td>
-                  <td class="d-none d-xl-table-cell small">{{ i.parish or '—' }}<div class="text-muted">{{ i.organization }}</div></td>
-                  <td class="text-nowrap">{% if i.seen_count %}<span class="tu-conf-pill">{{ i.seen_count + 1 }}</span>{% else %}<span class="text-muted small">1</span>{% endif %}
-                    {% if i.fixed_count %}<i class="bi bi-check2-circle text-success" title="{{ i.fixed_count }} dizem que já está resolvido"></i>{% endif %}</td>
-                  <td>{{ status_badge(i.status) }}</td>
-                  <td class="d-none d-sm-table-cell small text-nowrap">{{ i.created_at|local('%d/%m/%Y') }}</td>
-                </tr>
-              {% else %}
-                <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma ocorrência corresponde aos filtros.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+  {# Pesquisa + filtros (fechados) #}
+  <form class="tu-d-search" method="get" role="search">
+    {% if filters.status %}<input type="hidden" name="status" value="{{ filters.status }}">{% endif %}
+    <label class="tu-d-q">
+      <svg {{ ico|safe }}><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Pesquisar n.º TU-… ou título" aria-label="Pesquisar">
+    </label>
+    <details class="tu-d-more" {{ 'open' if filters.category_id or filters.parish or filters.sort == 'confirmadas' or filters.view != 'ativas' }}>
+      <summary>Filtros</summary>
+      <div class="tu-d-filters">
+        <label>Mostrar
+          <select name="view">
+            {% for v, label in [('ativas', 'Por resolver'), ('arquivo', 'Arquivo'), ('todas', 'Todas')] %}<option value="{{ v }}" {{ 'selected' if filters.view == v }}>{{ label }}</option>{% endfor %}
+          </select></label>
+        <label>Categoria
+          <select name="category_id">
+            <option value="">Todas</option>
+            {% for c in categories %}<option value="{{ c.id }}" {{ 'selected' if filters.category_id == c.id|string }}>{{ c.name }}</option>{% endfor %}
+          </select></label>
+        {% if parishes and (g.user.role == 'admin' or g.user.org_municipality in (none, 'Fundão')) %}
+        <label>Freguesia
+          <select name="parish">
+            <option value="">Todas</option>
+            {% for p in parishes %}<option value="{{ p.code }}" {{ 'selected' if filters.parish == p.code }}>{{ p.short_name }}</option>{% endfor %}
+          </select></label>
+        {% endif %}
+        <label>Ordenar
+          <select name="sort">
+            <option value="recentes" {{ 'selected' if filters.sort != 'confirmadas' }}>Mais recentes</option>
+            <option value="confirmadas" {{ 'selected' if filters.sort == 'confirmadas' }}>Mais confirmadas</option>
+          </select></label>
+        <div class="tu-d-filter-actions">
+          <button class="tu-s-btn" type="submit">Aplicar</button>
+          <a class="tu-a-btn" href="{{ url_for('admin_dashboard') }}">Limpar</a>
         </div>
-        <div class="small text-muted mt-2">{{ incidents|length }} ocorrência(s)</div>
       </div>
-    </div>
+    </details>
+  </form>
+
+  {# Lista #}
+  <h2 class="tu-s-sec">{{ total }} {{ 'ocorrência' if total == 1 else 'ocorrências' }}{% if filters.status %} · {{ filters.status }}{% endif %}{% if pages > 1 %} · página {{ page }} de {{ pages }}{% endif %}</h2>
+  <div class="tu-s-list">
+    {% for i in incidents %}
+      {% set st = category_style(i.category) %}
+      <a class="tu-s-row tu-d-row" href="{{ url_for('admin_incident', incident_id=i.id) }}">
+        <span class="tu-d-cat" style="--c: {{ st.color }}" aria-hidden="true"><i class="bi bi-{{ st.icon }}"></i></span>
+        <span><b>{{ i.title }}{% if i.priority == 'Alta' %} <em class="tu-d-high">Alta</em>{% endif %}</b>
+          <small>{{ i.ticket }} · {{ i.created_at|local('%d/%m/%Y') }}{% if i.seen_count %} · {{ i.seen_count + 1 }} viram{% endif %}</small>
+          {% if i.parish or (g.user.role == 'admin' and i.municipality) %}<small class="tu-d-place">{{ i.parish or i.municipality }}</small>{% endif %}</span>
+        {{ status_badge(i.status) }}
+        <svg class="tu-s-chev" {{ ico|safe }}><path d="m9 6 6 6-6 6"/></svg>
+      </a>
+    {% else %}
+      <p class="tu-a-empty">Nenhuma ocorrência{{ ' com estes filtros' if filters.q or filters.status or filters.category_id or filters.parish }}.</p>
+    {% endfor %}
   </div>
 
-  <div class="col-xl-4">
-    <div class="tu-card mb-3"><div class="card-body p-2">
-      <h2 class="tu-section px-2 pt-2 mb-2"><i class="bi bi-map"></i> Mapa de ocorrências</h2>
-      <div class="tu-map" data-map="multi" data-lat="40.1405" data-lng="-7.5012"></div>
-      <script type="application/json" id="map-points">{{ points|tojson }}</script>
-    </div></div>
-    <div class="tu-card"><div class="card-body">
-      <h2 class="h6">Por categoria</h2>
-      {% set max_n = (category_counts|map(attribute='n')|max) or 1 %}
-      {% for c in category_counts %}
-        <div class="small d-flex justify-content-between"><span>{{ c.name }}</span><b>{{ c.n }}</b></div>
-        <div class="tu-bar mb-2"><span style="width: {{ (c.n / max_n * 100)|round }}%"></span></div>
-      {% endfor %}
-    </div></div>
-  </div>
+  {% if pages > 1 %}
+    {% set args = request.args.to_dict() %}
+    <nav class="tu-d-pager" aria-label="Páginas">
+      {% if page > 1 %}<a class="tu-a-btn" href="{{ url_for('admin_dashboard', **dict(args, pagina=page - 1)) }}">‹ Anterior</a>{% else %}<span></span>{% endif %}
+      {% if page < pages %}<a class="tu-a-btn" href="{{ url_for('admin_dashboard', **dict(args, pagina=page + 1)) }}">Seguinte ›</a>{% endif %}
+    </nav>
+  {% endif %}
+
+  <p class="tu-s-hint mt-3"><a href="{{ url_for('live_map') }}">Ver no mapa</a>{% if g.user.role == 'admin' %} · <a href="{{ url_for('admin_supervision') }}">Estatísticas</a>{% endif %}</p>
 </div>
-{% endblock %}
-{% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="{{ url_for('static', filename='js/map.js') }}"></script>
 {% endblock %}

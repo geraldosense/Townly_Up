@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Atividade da conta{% endblock %}
+{% block content %}
+<div class="tu-acct-activity">
+  <div class="tu-page-head">
+    <div>
+      <div class="tu-eyebrow">Segurança</div>
+      <h1>Atividade da conta</h1>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('account') }}">A minha conta</a>
+  </div>
+
+  <dl class="tu-activity-facts">
+    <div><dt>Conta criada</dt><dd>{{ user.created_at|local('%d/%m/%Y') if user.created_at else '—' }}</dd></div>
+    <div><dt>Último acesso</dt><dd>{{ user.last_login_at|local('%d/%m/%Y · %H:%M') if user.last_login_at else '—' }}</dd></div>
+    <div><dt>Email</dt><dd>{{ g.user.email }}</dd></div>
+  </dl>
+  <p class="small text-muted">Se não reconhece um acesso, <a href="{{ url_for('account') }}#palavra-passe">mude a palavra-passe</a>.</p>
+
+  {% if warnings %}
+    <h2 class="h4 mt-4" id="avisos">Avisos da comunidade</h2>
+    <ul class="tu-acct-warnings">
+      {% for w in warnings %}
+        <li class="{{ 'is-ban' if w.led_to_ban }}">
+          <b>{{ 'Banimento' if w.led_to_ban else 'Aviso formal' }} · {{ warning_labels[w.kind] }}</b>
+          <span>{{ w.context|capitalize }} · {{ w.created_at|local('%d/%m/%Y · %H:%M') }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="small text-muted">Regra: ao 1.º ato o conteúdo é bloqueado e recebe um aviso; ao 2.º a conta é banida. <a href="{{ url_for('rules') }}#seguranca">Ver regras</a>.</p>
+  {% endif %}
+
+  <h2 class="h4 mt-4">O que fez</h2>
+  {% if events %}
+    <ol class="tu-activity-list">
+      {% for e in events %}
+        <li class="is-{{ e.kind }}">
+          <span class="tu-activity-dot" aria-hidden="true"></span>
+          <div>
+            {% if e.url %}<a href="{{ e.url }}">{{ e.text }}</a>{% else %}{{ e.text }}{% endif %}
+            <small>{{ e.at|local('%d/%m/%Y · %H:%M') }}</small>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <div class="tu-empty"><p class="mb-0">Ainda não há atividade nesta conta.</p></div>
+  {% endif %}
+
+  {% if points %}
+    <h2 class="h4 mt-4">Pontos ganhos</h2>
+    <ul class="tu-activity-points">
+      {% for p in points %}
+        <li><span>{{ p.label }}{% if p.ticket %} · {{ p.ticket }}{% endif %}<small>{{ p.created_at|local('%d/%m/%Y') }}</small></span><b>+{{ p.points }}</b></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endblock %}

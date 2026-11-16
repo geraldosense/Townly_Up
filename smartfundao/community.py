@@ -193,19 +193,47 @@ def public_incident(row):
         "parish_code": row["parish_code"], "parish": row["parish"],
         "lat": row["latitude"], "lng": row["longitude"], "created_at": row["created_at"],
         "seen": row["seen_count"], "fixed": row["fixed_count"],
+        "subcategory": row["subcategory"] if "subcategory" in row.keys() else None,
+        "address": row["address"] if "address" in row.keys() else None,
     }
 
 
-def public_map(db, days_resolved=30):
+def public_map(db, days_resolved=30, bbox=None, parish=None, limit=None):
     """Ocorrências ativas + resolvidas nos últimos `days_resolved` dias.
-    Rejeitadas e duplicadas não aparecem no mapa público."""
+    Rejeitadas e duplicadas não aparecem no mapa público.
+    bbox=(lng_min, lat_min, lng_max, lat_max) e parish limitam a zona; limit, o número (as mais recentes)."""
     since = (datetime.now(timezone.utc) - timedelta(days=days_resolved)).strftime("%Y-%m-%d %H:%M:%S")
-    rows = db.execute(
-        sv.INCIDENT_SELECT + f""" WHERE i.deleted_at IS NULL AND (i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
-            OR (i.status = ? AND i.resolved_at >= ?)) ORDER BY i.created_at DESC""",
-        (*sv.ACTIVE_STATUSES, sv.RESOLVIDA, since),
-    ).fetchall()
-    return [public_incident(r) for r in rows]
+    where = [f"i.deleted_at IS NULL AND (i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))}) OR (i.status = ? AND i.resolved_at >= ?))"]
+    params = [*sv.ACTIVE_STATUSES, sv.RESOLVIDA, since]
+    if bbox:
+        where.append("i.longitude BETWEEN ? AND ? AND i.latitude BETWEEN ? AND ?")
+        params += [bbox[0], bbox[2], bbox[1], bbox[3]]
+    if parish:
+        where.append("i.parish_code = ?")
+        params.append(parish)
+    sql = sv.INCIDENT_SELECT + " WHERE " + " AND ".join(where) + " ORDER BY i.created_at DESC"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return [public_incident(r) for r in db.execute(sql, params).fetchall()]
+
+
+def public_photo_ids(db, incident_ids):
+    """1.ª fotografia do problema de cada ocorrência pública (para «Últimas ocorrências»)."""
+    if not incident_ids:
+        return {}
+    marks = ",".join("?" * len(incident_ids))
+    rows = db.execute(f"""SELECT incident_id, MIN(id) AS image_id FROM incident_images
+                           WHERE kind = 'report' AND incident_id IN ({marks}) GROUP BY incident_id""",
+                      list(incident_ids)).fetchall()
+    return {r["incident_id"]: r["image_id"] for r in rows}
+
+
+def is_public(db, incident_id, days_resolved=30):
+    """A ocorrência aparece no mapa público? (ativa, ou resolvida há pouco; nunca apagada/rejeitada/duplicada)"""
+    since = (datetime.now(timezone.utc) - timedelta(days=days_resolved)).strftime("%Y-%m-%d %H:%M:%S")
+    return db.execute(
+        f"""SELECT 1 FROM incidents i WHERE i.id = ? AND i.deleted_at IS NULL AND (i.status IN ({','.join('?' * len(sv.ACTIVE_STATUSES))})
+            OR (i.status = ? AND i.resolved_at >= ?))""", (incident_id, *sv.ACTIVE_STATUSES, sv.RESOLVIDA, since)).fetchone() is not None
 
 
 # ------------------------------------------------------------------ Ranking

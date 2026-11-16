@@ -1,54 +1,143 @@
 {% extends "base.html" %}
-{% block title %}Mapa vivo{% endblock %}
+{% block title %}Mapa · {{ 'Portugal' if national else area.name }}{% endblock %}
 {% block main_class %}{% endblock %}
-{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block body_class %}tu-page-map{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+{% endblock %}
 {% block hero %}
-<div class="tu-live" id="live"
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+<div class="tu-gmap" id="live"
      data-role="{{ g.user.role if g.user else 'anon' }}"
      data-login="{{ url_for('login', next=url_for('live_map')) }}"
-     data-lat="{{ center[0] }}" data-lng="{{ center[1] }}">
-  <aside class="tu-live-panel">
-    <div class="tu-live-head">
-      <div class="d-flex justify-content-between align-items-start gap-2">
-        <div>
-          <div class="tu-eyebrow">Ao vivo · Fundão</div>
-          <h1 class="h4 mb-0">Mapa vivo</h1>
-          <div class="small text-muted" id="live-count">A carregar ocorrências…</div>
-        </div>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Estado">
-          <input type="radio" class="btn-check" name="scope" id="scope-active" value="active" checked>
-          <label class="btn btn-outline-primary" for="scope-active">Ativas</label>
-          <input type="radio" class="btn-check" name="scope" id="scope-resolved" value="resolved">
-          <label class="btn btn-outline-primary" for="scope-resolved">Resolvidas</label>
-        </div>
-      </div>
-      <div class="tu-chips mt-3" id="chips">
-        <button type="button" class="tu-chip-filter active" data-cat="">Todas</button>
-        {% for c in categories %}{% set st = category_style(c.name) %}
-          <button type="button" class="tu-chip-filter" data-cat="{{ c.id }}" style="--c: {{ st.color }}"><i class="bi bi-{{ st.icon }}"></i> {{ c.name }}</button>
-        {% endfor %}
-      </div>
-      <div class="mt-2" id="parish-filter" hidden></div>
-      {% if not g.user %}
-        <div class="alert alert-info small py-2 mt-2 mb-0 tu-alert"><i class="bi bi-info-circle"></i>
-          <a href="{{ url_for('login', next=url_for('live_map')) }}">Entre</a> para confirmar ocorrências e ganhar pontos.</div>
-      {% endif %}
-    </div>
-    <div class="tu-live-list" id="feed" aria-live="polite"></div>
-  </aside>
+     data-territory="{{ url_for('api.territory_geometry', concelho=area.name) }}"
+     data-active="{{ '1' if area.active else '0' }}"
+     data-my-parish="{{ my_parish or '' }}"
+     data-area="{{ area.name }}"
+     data-national="{{ '1' if national else '0' }}"
+     data-country="{{ url_for('static', filename='data/portugal_continental.geojson') }}"
+     data-districts="{{ url_for('static', filename='data/distritos_continente.geojson') }}"
+     data-new="{{ url_for('new_incident') }}">
+  <div id="live-map" class="tu-gmap-canvas" role="application" aria-label="{{ 'Mapa das ocorrências em Portugal' if national else 'Mapa das ocorrências do concelho de ' ~ area.name }}"></div>
 
-  <section class="tu-live-map">
-    <div id="live-map" class="tu-map"></div>
-    <div class="tu-map-toggle"><button type="button" class="btn btn-sm active" id="toggle-parishes" aria-pressed="true" hidden><i class="bi bi-bounding-box"></i> Freguesias</button></div>
-    <div class="tu-map-legend d-none d-sm-block"><i class="bi bi-people-fill text-danger"></i> nº de munícipes que viram o problema</div>
-    <div class="tu-fab">
-      <button type="button" class="tu-fab-locate" id="locate" title="Perto de mim" aria-label="Mostrar ocorrências perto de mim"><i class="bi bi-crosshair fs-5"></i></button>
+  {# ---------------- topo: pesquisa e separadores Tudo / As minhas #}
+  <div class="tu-gmap-top">
+    <button type="button" class="tu-gmap-btn" id="gm-search-toggle" aria-label="Pesquisar" aria-expanded="false">
+      <svg {{ ico|safe }}><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+    </button>
+    <form class="tu-gmap-search" id="gm-search" role="search" hidden>
+      <input type="search" id="gm-q" placeholder="Rua, lugar ou n.º TU-…" autocomplete="off" aria-label="Pesquisar rua, lugar ou número da ocorrência">
+      <div class="tu-gmap-results" id="gm-results" role="listbox"></div>
+    </form>
+  </div>
+
+  {# ---------------- aviso: concelho ainda não aderiu #}
+  {% if my_municipality and not area.active %}
+    <div class="tu-gmap-notice" id="gm-notice">
+      <b>Ainda não disponível no seu concelho</b>
+      <span>A Câmara de {{ my_municipality }} ainda não aderiu ao Townly Up: pode ver o mapa do seu concelho, mas ainda não há ocorrências nem pode comunicar.</span>
+      <a href="{{ url_for('settings') }}#concelho">Mudar concelho</a>
+      <button type="button" aria-label="Fechar" onclick="this.parentElement.remove()">×</button>
     </div>
+  {% endif %}
+
+  {# ---------------- canto inferior direito: opções do mapa, camadas e localização (botões redondos) #}
+  {% set gear = '<g transform="translate(.4 .4) scale(.74)"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g><path class="tu-fab-cut" d="M17.6 23s-4.6-3.9-4.6-7.6a4.6 4.6 0 0 1 9.2 0c0 3.7-4.6 7.6-4.6 7.6z"/><circle cx="17.6" cy="15.5" r="1.5"/>' %}
+  <div class="tu-gmap-fabs" id="gm-fabs">
+    <div class="tu-gmap-zoom">
+      <button type="button" id="gm-zin" aria-label="Aproximar">+</button>
+      <button type="button" id="gm-zout" aria-label="Afastar">−</button>
+    </div>
+
+    <div class="tu-gmap-fabwrap">
+      <button type="button" class="tu-gmap-fab" id="gm-settings" aria-expanded="false" aria-controls="gm-settings-pop" title="Opções do mapa" aria-label="Opções do mapa">
+        <svg {{ ico|safe }}>{{ gear|safe }}</svg>
+      </button>
+      <div class="tu-gmap-pop" id="gm-settings-pop" role="dialog" aria-label="Opções do mapa" hidden>
+        <p class="tu-gmap-pop-title">Opções do mapa</p>
+        <button type="button" class="tu-gmap-opt" id="gm-parishes" aria-pressed="false">
+          <svg {{ ico|safe }}><path d="m3.5 6.5 5.5-2.5 6 2.5 5.5-2.5v13.5L15 20l-6-2.5-5.5 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+          <span>Limites das freguesias</span><i class="tu-gmap-switch" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="tu-gmap-opt" id="gm-fit">
+          <svg {{ ico|safe }}><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/><circle cx="12" cy="12" r="2.5"/></svg>
+          <span>Ver o concelho inteiro</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tu-gmap-layers" id="gm-layers-box">
+      <div class="tu-gmap-layers-opts" id="gm-layers-opts" role="radiogroup" aria-label="Tipo de mapa">
+        <button type="button" class="tu-gmap-lopt" data-base="sat" role="radio" aria-checked="false" title="Satélite" aria-label="Vista de satélite" tabindex="-1">
+          <svg {{ ico|safe }}><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m8 12 4 4 6-6-4-4Z"/><path d="m16 8 3-3"/><path d="M9 21a6 6 0 0 0-6-6"/></svg>
+        </button>
+        <button type="button" class="tu-gmap-lopt is-on" data-base="map" role="radio" aria-checked="true" title="Mapa" aria-label="Vista de mapa" tabindex="-1">
+          <svg {{ ico|safe }}><circle cx="12" cy="12" r="9.5"/><path d="M21.4 14.8H17a2 2 0 0 0-2 2v4.3"/><path d="M7 3.6V5a3 3 0 0 0 3 3 2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.1"/><path d="M11 21.4V18a2 2 0 0 0-2-2 2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.6"/></svg>
+        </button>
+      </div>
+      <button type="button" class="tu-gmap-fab tu-gmap-ltoggle" id="gm-layers" aria-expanded="false" aria-controls="gm-layers-opts" title="Camadas do mapa" aria-label="Camadas do mapa">
+        <svg {{ ico|safe }}><path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8z"/><path d="m22 17.6-9.2 4.2a2 2 0 0 1-1.6 0L2 17.6"/><path d="m22 12.6-9.2 4.2a2 2 0 0 1-1.6 0L2 12.6"/></svg>
+      </button>
+    </div>
+
+    <button type="button" class="tu-gmap-fab" id="locate" title="Perto de mim" aria-label="Mostrar a minha localização">
+      <svg {{ ico|safe }}><path d="M3 11 22 2l-9 19-2-8z"/></svg>
+    </button>
+  </div>
+
+  {# ---------------- baixo: reportar (só no computador) #}
+  <div class="tu-gmap-bottom">
+    {% if not g.user or g.user.role == 'citizen' %}
+      {% if can_report %}
+        <a class="tu-gmap-report" href="{{ url_for('new_incident') }}"><span>+</span> Reportar</a>
+      {% else %}
+        <a class="tu-gmap-report is-off" href="{{ url_for('new_incident') }}" title="Ainda não disponível no seu concelho"><span>+</span> Reportar</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  {# ---------------- vista em lista (mesmos filtros do mapa) #}
+  <section class="tu-glist" id="gm-list" hidden aria-labelledby="gm-list-title">
+    <header class="tu-glist-head">
+      <h1 id="gm-list-title">Todas as ocorrências</h1>
+      <a class="tu-glist-tomap" href="{{ url_for('live_map') }}">Ver no mapa</a>
+    </header>
+    <ol class="tu-glist-items" id="gm-list-items"></ol>
   </section>
+
+  {# ---------------- detalhe de uma ocorrência (folha que sobe de baixo) #}
+  <div class="tu-gsheet" id="gm-sheet" hidden>
+    <div class="tu-gsheet-backdrop" data-sheet-close></div>
+    <article class="tu-gsheet-panel" role="dialog" aria-modal="true" aria-labelledby="gm-sheet-title">
+      <div class="tu-gsheet-grip" aria-hidden="true"></div>
+      <div id="gm-sheet-body"></div>
+    </article>
+  </div>
+
+  {# ---------------- boas-vindas (1.ª visita) #}
+  <div class="tu-gintro" id="gm-intro" hidden>
+    <div class="tu-gintro-panel" role="dialog" aria-modal="true" aria-labelledby="gm-intro-title">
+      <h2 id="gm-intro-title">Mapa de ocorrências</h2>
+      <p>Aqui vê os problemas comunicados no espaço público do seu concelho — buracos, iluminação, lixo, espaços verdes, sinalização — e o estado de cada um:</p>
+      <ul class="tu-gintro-states">
+        <li><i class="is-recebida"></i><b>Recebida</b> chegou à entidade responsável</li>
+        <li><i class="is-execucao"></i><b>Em execução</b> está a ser tratada</li>
+        <li><i class="is-concluida"></i><b>Concluída</b> foi resolvida</li>
+      </ul>
+      <p>Antes de comunicar um problema novo, veja se já existe: se sim, carregue em «Eu também vi».</p>
+      <label class="tu-gintro-check"><input type="checkbox" id="gm-intro-never"> Não mostrar novamente</label>
+      <div class="tu-gintro-actions">
+        <button type="button" class="btn btn-outline-primary" data-intro="explorar">Explorar</button>
+        {% if (not g.user or g.user.role == 'citizen') and can_report %}<a class="btn btn-primary" href="{{ url_for('new_incident') }}" data-intro="reportar">Comunicar</a>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div id="feed" hidden></div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="{{ url_for('static', filename='js/parishes.js') }}"></script>
-<script src="{{ url_for('static', filename='js/live.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live.js') }}?v={{ asset_version }}"></script>
 {% endblock %}

@@ -70,10 +70,12 @@ def test_todos_os_municipes_recebem_alerta(client, app):
     assert count(app, "SELECT COUNT(*) FROM notifications WHERE kind = 'zone'") == 0   # sem cópias por pessoa
     client.post("/logout")
     login(client, "carlos@teste.pt")
+    assert 'tu-bell-count">1<' in client.get("/mapa").get_data(as_text=True)      # o sino mostra 1
+    page = client.get("/alertas").get_data(as_text=True)                          # abrir os alertas = vê-los
+    assert "Novo problema" in page and "novo</span>" in page                      # continua destacado nesta visita
+    assert 'tu-bell-count' not in page                                            # mas o número já desapareceu
     page = client.get("/alertas").get_data(as_text=True)
-    assert "Novo problema" in page and 'tu-bell-count">1<' in page
-    client.post("/alertas/lidas")
-    assert 'tu-bell-count' not in client.get("/alertas").get_data(as_text=True)
+    assert 'tu-bell-count' not in page and "novo</span>" not in page              # na visita seguinte já está visto
 
 
 def test_mesma_freguesia_recebe_alerta_destacado(client, app):

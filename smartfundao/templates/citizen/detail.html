@@ -12,6 +12,34 @@
       {{ timeline(history) }}
     </div></div>
 
+    {# Avaliação da resolução: fecha o ciclo — se o problema continua, a ocorrência é reaberta #}
+    {% if can_rate %}
+    <div class="tu-card tu-rate mt-3" id="avaliar"><div class="card-body">
+      {% if rating %}
+        <h2 class="tu-section mb-2">A sua avaliação</h2>
+        <div class="tu-stars is-static" aria-label="{{ rating.stars }} de 5 estrelas">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= rating.stars }}">★</span>{% endfor %}</div>
+        {% if rating.comment %}<p class="small text-muted mb-0 mt-2">«{{ rating.comment }}»</p>{% endif %}
+      {% else %}
+        <h2 class="tu-section mb-1">Ficou bem resolvido?</h2>
+        <p class="small text-muted">A sua opinião ajuda a Câmara a medir a qualidade das intervenções.</p>
+        <form method="post" action="{{ url_for('rate_incident', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="tu-stars" role="radiogroup" aria-label="Avaliação de 1 a 5 estrelas">
+            {% for n in range(5, 0, -1) %}
+              <input type="radio" name="stars" value="{{ n }}" id="star-{{ n }}" required><label for="star-{{ n }}" title="{{ n }} estrela{{ 's' if n > 1 }}">★</label>
+            {% endfor %}
+          </div>
+          <textarea class="form-control mt-3" name="comment" rows="2" maxlength="500" placeholder="Comentário (opcional)"></textarea>
+          <label class="tu-reopen mt-3">
+            <input class="form-check-input" type="checkbox" name="reopen" value="1">
+            <span><b>O problema continua</b><small>A ocorrência volta a «Em tratamento» e a entidade é avisada. Diga no comentário o que falta.</small></span>
+          </label>
+          <button class="btn btn-primary w-100 mt-3" type="submit">Enviar avaliação</button>
+        </form>
+      {% endif %}
+    </div></div>
+    {% endif %}
+
     {# Apagar: só o autor e só enquanto a entidade ainda não começou a tratar #}
     <div class="tu-danger-zone mt-3">
       {% if can_delete %}

@@ -12,9 +12,10 @@
 
   function baseMap(el, lat, lng, zoom) {
     const map = L.map(el).setView([lat, lng], zoom);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // O mesmo mapa de ruas do mapa principal (Esri World Street Map), para tudo ter o mesmo aspeto.
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      attribution: 'Mapa &copy; Esri, HERE, Garmin, &copy; colaboradores <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
     return map;
   }

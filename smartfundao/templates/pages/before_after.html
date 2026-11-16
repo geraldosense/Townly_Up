@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Antes e depois{% endblock %}
+{% block content %}
+<div class="tu-ba-page">
+  <div class="tu-page-head">
+    <div>
+      <div class="tu-eyebrow">Resultados no concelho</div>
+      <h1>Antes e depois</h1>
+    </div>
+    {% if satisfaction.n %}
+      <div class="tu-ba-score" title="Média das avaliações dos munícipes">
+        <span class="tu-ba-stars">★</span><b>{{ '%.1f'|format(satisfaction.avg) }}</b><small>/ 5 · {{ satisfaction.n }} avaliaç{{ 'ão' if satisfaction.n == 1 else 'ões' }}</small>
+      </div>
+    {% endif %}
+  </div>
+  <p class="tu-lede-sm">Problemas comunicados pelos munícipes e já resolvidos. Arraste a linha para comparar a fotografia do problema com a da intervenção.</p>
+
+  {% if items %}
+  <div class="tu-ba-grid">
+    {% for i in items %}
+      <article class="tu-ba-card">
+        <div class="tu-ba" style="--pos: 50%">
+          <img class="tu-ba-after" src="{{ url_for('public_photo', incident_id=i.id, kind='depois') }}" alt="Depois: {{ i.subcategory or i.category }} resolvido" loading="lazy" draggable="false">
+          <div class="tu-ba-before-wrap"><img src="{{ url_for('public_photo', incident_id=i.id, kind='antes') }}?g=1" alt="Antes: {{ i.subcategory or i.category }}" loading="lazy" draggable="false"></div>
+          <span class="tu-ba-tag is-before">Antes</span><span class="tu-ba-tag is-after">Depois</span>
+          <input class="tu-ba-range" type="range" min="0" max="100" value="50" aria-label="Comparar antes e depois de {{ i.ticket }}">
+          <span class="tu-ba-handle" aria-hidden="true"></span>
+        </div>
+        <div class="tu-ba-body">
+          <span class="tu-ba-cat">{{ i.category }}{% if i.subcategory %} › {{ i.subcategory }}{% endif %}</span>
+          <h2>{{ i.address or i.parish or 'Concelho do Fundão' }}</h2>
+          <p><b>{{ i.ticket }}</b> · {{ i.organization }} · resolvida em {{ i.resolved_at|local('%d/%m/%Y') }}</p>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="tu-empty"><p class="mb-0">Ainda não há resoluções com fotografia. Quando uma entidade resolver um problema e juntar a fotografia da intervenção, aparece aqui.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Comparador: a linha acompanha o controlo deslizante (rato, dedo e teclado).
+  document.querySelectorAll('.tu-ba').forEach(box => {
+    const range = box.querySelector('.tu-ba-range');
+    range.addEventListener('input', () => box.style.setProperty('--pos', range.value + '%'));
+  });
+</script>
+{% endblock %}

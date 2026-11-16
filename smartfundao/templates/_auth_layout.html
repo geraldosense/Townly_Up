@@ -4,7 +4,7 @@
    Centro: corte inclinado com duplo filete e um selo com o logótipo sobre a fronteira.
    Direita: formulário sobre papel com curvas de nível, separadores Entrar / Criar conta. #}
 {% block body_class %}tu-auth-body{% endblock %}
-{% block header %}{% endblock %}
+{% block header %}{% set hide_appbar = true %}{% include "_header.html" %}{% endblock %}
 {% block footer %}{% endblock %}
 {% block flashes %}{% endblock %}
 {% block main_class %}p-0{% endblock %}
@@ -43,11 +43,18 @@
     <div class="tu-split-top">
       <a class="tu-split-back" href="{{ url_for('index') }}">← Voltar ao site</a>
     </div>
-    <section class="tu-split-panel">
-      {% set ep = request.endpoint %}
+    {% set ep = request.endpoint %}
+    {% set acc = access or 'cidadao' %}
+    <section class="tu-split-panel{{ ' is-entidade' if acc == 'entidade' }}">
+      {# Tipo de conta: Cidadão ou Câmara (inclui Juntas e serviços técnicos). Muda o formulário. #}
+      <div class="tu-seg" role="tablist" aria-label="Tipo de conta">
+        <a role="tab" href="{{ url_for(ep, acesso='cidadao') }}" aria-selected="{{ 'true' if acc == 'cidadao' else 'false' }}" class="{{ 'is-on' if acc == 'cidadao' }}">Cidadão</a>
+        <a role="tab" href="{{ url_for(ep, acesso='entidade') }}" aria-selected="{{ 'true' if acc == 'entidade' else 'false' }}" class="{{ 'is-on' if acc == 'entidade' }}">Câmara</a>
+        <span class="tu-seg-thumb{{ ' is-right' if acc == 'entidade' }}" aria-hidden="true"></span>
+      </div>
       <nav class="tu-auth-tabs" aria-label="Acesso">
-        <a href="{{ url_for('login') }}" class="{{ 'is-active' if ep == 'login' }}" {{ 'aria-current=page' if ep == 'login' }}>Entrar</a>
-        <a href="{{ url_for('register') }}" class="{{ 'is-active' if ep == 'register' }}" {{ 'aria-current=page' if ep == 'register' }}>Criar conta</a>
+        <a href="{{ url_for('login', acesso=acc) }}" class="{{ 'is-active' if ep == 'login' }}" {{ 'aria-current=page' if ep == 'login' }}>Entrar</a>
+        <a href="{{ url_for('register', acesso=acc) }}" class="{{ 'is-active' if ep == 'register' }}" {{ 'aria-current=page' if ep == 'register' }}>{{ 'Pedir acesso' if acc == 'entidade' else 'Criar conta' }}</a>
         <span class="tu-auth-tabs-ink" aria-hidden="true"></span>
       </nav>
       {% include "_flashes.html" %}

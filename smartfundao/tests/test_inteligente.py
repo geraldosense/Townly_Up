@@ -106,25 +106,33 @@ def test_fotografia_impropria_e_recusada(client, app, verdict):
     assert count(app, "incidents") == 0 and count(app, "moderation_events") == 1
 
 
-def test_fotografia_sem_relacao_e_recusada_sem_suspender(client, app, verdict):
+def test_fotografia_sem_relacao_da_aviso_e_depois_banimento(client, app, verdict):
+    """«Imagens desnecessárias»: 1.ª vez aviso formal, 2.ª vez a conta é banida."""
     verdict["value"] = "sem_relacao"
     login(client, "ana@teste.pt")
-    for _ in range(4):
-        assert "não mostra um problema" in post(client).get_data(as_text=True)
+    html = post(client).get_data(as_text=True)
+    assert "não mostra um problema" in html and "aviso formal" in html
     with app.app_context():
         assert get_db().execute("SELECT active FROM users WHERE email = 'ana@teste.pt'").fetchone()[0]
-
-
-def test_tres_envios_improprios_suspendem_a_conta(client, app, verdict):
-    verdict["value"] = "violencia"
-    login(client, "ana@teste.pt")
-    post(client), post(client)
+    assert "Aviso formal" in client.get("/").get_data(as_text=True)          # faixa de aviso até confirmar
     resp = post(client)
     assert resp.status_code == 302 and "/login" in resp.headers["Location"]
     with app.app_context():
         assert not get_db().execute("SELECT active FROM users WHERE email = 'ana@teste.pt'").fetchone()[0]
+
+
+def test_segundo_envio_improprio_bane_a_conta(client, app, verdict):
+    verdict["value"] = "violencia"
+    login(client, "ana@teste.pt")
+    assert "aviso formal" in post(client).get_data(as_text=True)
+    resp = post(client)
+    assert resp.status_code == 302 and "/login" in resp.headers["Location"]
+    with app.app_context():
+        row = get_db().execute("SELECT active, banned_at FROM users WHERE email = 'ana@teste.pt'").fetchone()
+        assert not row["active"] and row["banned_at"]
     assert client.get("/citizen").status_code in (302, 401, 403)          # sessão terminada
-    assert "incorretos" in client.post("/login", data={"email": "ana@teste.pt", "password": "Teste1234"}).get_data(as_text=True)
+    assert "foi banida" in client.post("/login", data={"email": "ana@teste.pt", "password": "Teste1234"}).get_data(as_text=True)
+    assert "incorretos" in client.post("/login", data={"email": "ana@teste.pt", "password": "Errada999"}).get_data(as_text=True)
 
 
 def test_falha_da_analise_nao_publica(client, app, verdict):

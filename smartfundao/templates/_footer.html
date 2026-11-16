@@ -1,0 +1,167 @@
+{# Rodapé — faixa de chamada à ação + colunas + linha legal discreta (referência: site da EPF). #}
+{% set ep = request.endpoint or '' %}
+{% set is_staff = g.user and g.user.role in ('admin', 'staff') %}
+{% set arrow %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>{% endset %}
+<footer class="tu-foot mt-auto">
+  {% if not is_staff and ep not in ('new_incident', 'incident_submitted', 'index', 'citizen_dashboard') %}
+  <section class="tu-foot-band">
+    <div class="container tu-foot-band-row">
+      <div>
+        <p class="tu-foot-kicker">Concelho do Fundão · 23 freguesias</p>
+        <h2 class="tu-foot-band-title">Viu um problema na rua?</h2>
+        <p class="tu-foot-band-text">Fotografe, marque no mapa e envie. A entidade responsável recebe o pedido e pode acompanhar tudo pelo número de referência.</p>
+      </div>
+      <div class="tu-foot-band-actions">
+        <a class="tu-foot-pill is-solid" href="{{ url_for('new_incident') }}">Comunicar ocorrência {{ arrow }}</a>
+        <a class="tu-foot-pill" href="{{ url_for('live_map') }}">Ver o mapa</a>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- A aplicação (penúltima faixa) #}
+  {% set ios_url = app_store_url %}{% set android_url = play_store_url %}
+  <section class="tu-foot-app" aria-labelledby="foot-app-title">
+    <div class="container tu-foot-app-grid">
+      <div class="tu-foot-app-main">
+        <div class="tu-foot-app-id">
+          <img class="tu-foot-app-icon" src="{{ url_for('static', filename='img/icon-512.png') }}" alt="" width="92" height="92" loading="lazy">
+          <div>
+            <h2 class="tu-foot-app-title" id="foot-app-title">App Townly Up</h2>
+            <p class="tu-foot-app-tag">O seu concelho, sempre à mão.</p>
+          </div>
+        </div>
+
+        {% if not (ios_url and android_url) %}<p class="tu-store-soon">Brevemente na App Store e no Google Play</p>{% endif %}
+        <div class="tu-store-badges">
+          {# Selos oficiais (servidos pela Apple e pela Google). Sem internet, aparece uma versão desenhada aqui. #}
+          {% for store in [
+              {'url': ios_url, 'name': 'App Store', 'small': 'Descarregar na', 'cls': 'is-apple',
+               'img': 'https://tools.applemarketingtools.com/api/badges/download-on-the-app-store/black/pt-pt?size=250x83',
+               'icon': '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.2-1.7-3-1.9-3.6-1.9-1.5-.2-3 .9-3.8.9s-2-.9-3.3-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.8-4.4zM14 5.3c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>'},
+              {'url': android_url, 'name': 'Google Play', 'small': 'Disponível no', 'cls': 'is-google',
+               'img': 'https://play.google.com/intl/en_us/badges/static/images/badges/pt_badge_web_generic.png',
+               'icon': '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#34a853" d="M3.6 2.3 13.4 12l-9.8 9.7c-.4-.2-.6-.6-.6-1.1V3.4c0-.5.2-.9.6-1.1z"/><path fill="#fbbc04" d="m16.8 8.6-3.4 3.4 3.4 3.4 3.9-2.2c1.1-.6 1.1-1.8 0-2.4z"/><path fill="#4285f4" d="M13.4 12 3.6 21.7c.3.2.8.2 1.3-.1l11.9-6.2z"/><path fill="#ea4335" d="M3.6 2.3c.3-.2.8-.2 1.3.1l11.9 6.2-3.4 3.4z"/></svg>'}] %}
+            {% set tag = 'a' if store.url else 'span' %}
+            <{{ tag }} class="tu-store-official {{ store.cls }}{{ '' if store.url else ' is-soon' }}"
+               {% if store.url %}href="{{ store.url }}" target="_blank" rel="noopener"{% endif %}
+               aria-label="{{ store.small }} {{ store.name }}{{ '' if store.url else ' (brevemente)' }}">
+              <img src="{{ store.img }}" alt="{{ store.small }} {{ store.name }}" loading="lazy" referrerpolicy="no-referrer"
+                   onerror="this.parentNode.classList.add('is-fallback')">
+              <span class="tu-store-badge" aria-hidden="true">{{ store.icon|safe }}<span><small>{{ store.small }}</small><b>{{ store.name }}</b></span></span>
+            </{{ tag }}>
+          {% endfor %}
+          <button type="button" class="tu-store-badge is-web" data-install-app>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5v7M9 11.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span><small>Já disponível</small><b>Instalar agora</b></span>
+          </button>
+        </div>
+        <p class="tu-install-tip" data-install-tip hidden>
+          <b>No iPhone:</b> toque em <span class="tu-ios-share" aria-hidden="true"></span> «Partilhar» e depois em «Adicionar ao ecrã principal».
+          <b>No Android:</b> menu ⋮ do Chrome → «Instalar aplicação».
+        </p>
+      </div>
+
+      <ul class="tu-foot-app-points">
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v1.2"/><path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></svg>
+          <b>Alertas na hora</b><span>O sino avisa quando há novidades na sua freguesia.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <b>Fotografia e GPS</b><span>Comunique no próprio local, em menos de um minuto.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9 17.5 20 6.5"/></svg>
+          <b>Acompanhe o pedido</b><span>Do registo à resolução, com número de referência.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="tu-foot-main">
+    <div class="container">
+      <div class="tu-foot-grid">
+        <div class="tu-foot-brand">
+          <a class="tu-foot-logo" href="{{ url_for('index') }}">
+            {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+            <span class="tu-wordmark">Townly <b>Up</b></span>
+          </a>
+          <p class="tu-foot-tagline">Não basta ver. É preciso comunicar.</p>
+          <ul class="tu-foot-contacts">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+              <span>Concelho do Fundão, Castelo Branco</span></li>
+            {% if contact_email %}
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><path d="m4 7 8 6 8-6"/></svg>
+              <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></li>
+            {% endif %}
+            <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h3l1.5 4.5-2 1.3a11 11 0 0 0 5.7 5.7l1.3-2 4.5 1.5v3a2 2 0 0 1-2.2 2A17 17 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z"/></svg>
+              <span>Emergências: <b>112</b> — não use a plataforma</span></li>
+          </ul>
+        </div>
+
+        {# No telemóvel as colunas são acordeões (como nas apps); no computador ficam sempre abertas. #}
+        <details class="tu-foot-col" open>
+          <summary class="tu-foot-head">Plataforma<svg class="tu-foot-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <ul class="tu-foot-list">
+            <li><a href="{{ url_for('live_map') }}">Mapa de ocorrências</a></li>
+            <li><a href="{{ url_for('new_incident') }}">Comunicar ocorrência</a></li>
+            <li><a href="{{ url_for('parishes_index') }}">As 23 freguesias</a></li>
+            <li><a href="{{ url_for('how_it_works') }}">Como funciona</a></li>
+          </ul>
+        </details>
+        <details class="tu-foot-col" open>
+          <summary class="tu-foot-head">Comunidade<svg class="tu-foot-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <ul class="tu-foot-list">
+            {% if not g.user %}<li><a href="{{ url_for('register') }}">Criar conta</a></li>{% endif %}
+            <li><a href="{{ url_for('ranking') }}">Participação e níveis</a></li>
+            <li><a href="{{ url_for('rules') }}">Regras da comunidade</a></li>
+            <li><a href="{{ url_for('help_page') }}">Ajuda e perguntas</a></li>
+          </ul>
+        </details>
+        <details class="tu-foot-col" open>
+          <summary class="tu-foot-head">Projeto<svg class="tu-foot-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+          <ul class="tu-foot-list tu-foot-list-text">
+            <li>Prova de Aptidão Profissional</li>
+            <li>Técnico de Desenvolvimento de Software</li>
+            <li>Mapas: CAOP · Direção-Geral do Território</li>
+          </ul>
+        </details>
+      </div>
+
+      <div class="tu-foot-legal">
+        <p>© {{ current_year }} Townly Up · Projeto académico (PAP): desenvolvimento de um sistema digital de identificação de problemas urbanos — não é um serviço oficial da Câmara Municipal do Fundão.</p>
+        <ul>
+          <li><a href="{{ url_for('privacy') }}">Política de privacidade</a></li>
+          <li><a href="{{ url_for('rules') }}">Regras</a></li>
+          <li><a href="{{ url_for('admin_dashboard') if is_staff else url_for('login', next=url_for('admin_dashboard')) }}">Painel de Administração</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</footer>
+<script>
+  // Rodapé: no telemóvel as colunas começam fechadas (acordeão); a partir de 576 px estão sempre abertas.
+  (function () {
+    const cols = document.querySelectorAll('.tu-foot-col');
+    const mq = window.matchMedia('(max-width: 575.98px)');
+    const sync = () => cols.forEach(d => { d.open = !mq.matches; });
+    sync(); (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
+    cols.forEach(d => d.querySelector('summary').addEventListener('click', e => { if (!mq.matches) e.preventDefault(); }));
+  })();
+
+  // «Instalar agora»: instala a app web (PWA). Android/Chrome mostram o pedido nativo; no iPhone mostram-se os passos.
+  (function () {
+    const btn = document.querySelector('[data-install-app]');
+    const tip = document.querySelector('[data-install-tip]');
+    if (!btn) return;
+    let deferred = null;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (standalone) { btn.querySelector('small').textContent = 'Já instalada'; btn.disabled = true; }
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
+    btn.addEventListener('click', async () => {
+      if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; return; }
+      tip.hidden = !tip.hidden;
+    });
+  })();
+</script>

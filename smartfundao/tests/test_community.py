@@ -213,11 +213,11 @@ def test_ranking_protege_nomes(client, app):
 
 def test_registo_com_freguesia(client, app):
     resp = client.post("/register", data={"name": "Rita", "email": "rita@teste.pt", "password": "Segura123",
-                                          "confirm": "Segura123", "terms": "1", "parish": "050413"})
+                                          "confirm": "Segura123", "terms": "1", "parish": "050413", "district": "Castelo Branco", "municipality": "Fundão"})
     assert resp.status_code == 302
     client.post("/logout")
     bad = client.post("/register", data={"name": "Zé", "email": "ze@teste.pt", "password": "Segura123",
-                                         "confirm": "Segura123", "terms": "1", "parish": "Lisboa"})
+                                         "confirm": "Segura123", "terms": "1", "parish": "Lisboa", "district": "Castelo Branco", "municipality": "Fundão"})
     assert bad.status_code == 200 and "Escolha uma freguesia da lista." in bad.get_data(as_text=True)
     with app.app_context():
         assert get_db().execute("SELECT parish_code FROM users WHERE email = 'rita@teste.pt'").fetchone()[0] == "050413"
@@ -304,7 +304,9 @@ def test_paginas_incluem_mapa_das_freguesias(client):
     home = client.get("/").get_data(as_text=True)
     assert 'id="territory"' in home and "parishes.js" in home
     live = client.get("/mapa").get_data(as_text=True)
-    assert 'id="toggle-parishes"' in live and 'id="parish-filter"' in live and "parishes.js" in live
+    assert 'id="gm-parishes"' in live and 'id="locate"' in live and "parishes.js" in live
+    assert 'id="chips"' not in live and 'id="gm-status"' not in live          # mapa limpo
+    assert "/api/v1/territorio?concelho=Fund" in live and "markercluster" in live
 
 
 # ------------------------------------------------------------------ GPS (Google Maps)

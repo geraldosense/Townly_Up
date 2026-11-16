@@ -3,8 +3,28 @@
 <html lang="pt-PT">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b2a5b">
+  <script>
+    // Tema (claro por omissão; escuro só se escolhido no menu) — aplicado antes de desenhar a página.
+    window.tuApplyPrefs = function () {
+      var d = document.documentElement, get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      var theme = get('tu-theme') || 'light';           // 1.ª vez: sempre claro (o escuro só se a pessoa o escolher)
+      var dark = theme === 'dark' || (theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+      d.setAttribute('data-theme', dark ? 'dark' : 'light');
+      d.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+    };
+    window.tuApplyPrefs();
+    // Ecrã de abertura (só telemóvel, uma vez por sessão, nunca com «reduzir animações»).
+    try {
+      var d = document.documentElement;
+      if (matchMedia('(max-width: 767.98px)').matches && !sessionStorage.getItem('tu-splash') &&
+          d.getAttribute('data-motion') !== 'reduce' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        d.classList.add('tu-splash-on'); sessionStorage.setItem('tu-splash', '1');
+      }
+    } catch (e) {}
+    if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', window.tuApplyPrefs);
+  </script>
   <title>{% block title %}Início{% endblock %} · Townly Up</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
@@ -24,7 +44,25 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_version }}">
 </head>
 <body class="d-flex flex-column min-vh-100 {% block body_class %}{% endblock %}">
+  {# Ecrã de abertura no telemóvel: o logótipo cresce, o fundo escurece e a frase aparece; depois revela a app. #}
+  <div class="tu-splash" id="tu-splash" aria-hidden="true">
+    <div class="tu-splash-brand">
+      {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
+      <span class="tu-wordmark">Townly <b>Up</b></span>
+    </div>
+    <p class="tu-splash-tag"><span>Não basta ver.</span><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3" fill="#0b2a5b"/></svg><span>É preciso comunicar.</span></p>
+  </div>
+  <script>
+    (function () {
+      var d = document.documentElement, el = document.getElementById('tu-splash');
+      if (!d.classList.contains('tu-splash-on')) { el.remove(); return; }
+      var done = function () { d.classList.add('tu-splash-out'); setTimeout(function () { d.classList.remove('tu-splash-on', 'tu-splash-out'); el.remove(); }, 450); };
+      var t = setTimeout(done, 2300);
+      el.addEventListener('click', function () { clearTimeout(t); done(); });
+    })();
+  </script>
   {% block header %}
+  {% set page_title = self.title() %}
   {% include "_header.html" %}
   {% endblock %}
 
@@ -32,41 +70,12 @@
     {% block hero %}{% endblock %}
     <div class="container">
       {% block flashes %}{% include "_flashes.html" %}{% endblock %}
+      {% if pending_warning %}{% include "_warning_banner.html" %}{% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>
 
-{% block footer %}
-  <footer class="tu-footer mt-auto">
-    <div class="container py-5">
-      <div class="row g-4">
-        <div class="col-md-5">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
-            <span class="tu-wordmark">Townly <b>Up</b></span>
-          </div>
-          <p class="mb-0" style="max-width: 26rem">Plataforma para comunicar e acompanhar problemas no espaço público do concelho do Fundão.</p>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="fw-bold text-white mb-2">Serviço</div>
-          <ul class="list-unstyled mb-0 d-grid gap-1">
-            <li><a href="{{ url_for('live_map') }}">Mapa de ocorrências</a></li>
-            <li><a href="{{ url_for('new_incident') }}">Comunicar ocorrência</a></li>
-            <li><a href="{{ url_for('ranking') }}">Participação</a></li>
-          </ul>
-        </div>
-        <div class="col-6 col-md-4">
-          <div class="fw-bold text-white mb-2">Informação</div>
-          <p class="mb-1">Não use este serviço para emergências: ligue <b class="text-white">112</b>.</p>
-          <p class="mb-0">Limites administrativos: CAOP, Direção-Geral do Território.</p>
-        </div>
-      </div>
-      <div class="tu-footer-rule mt-4 pt-3 small">
-        Prova de Aptidão Profissional · Técnico de Desenvolvimento de Software · Projeto académico — não é um serviço oficial da Câmara Municipal do Fundão.
-      </div>
-    </div>
-  </footer>
-  {% endblock %}
+{% block footer %}{% include "_footer.html" %}{% endblock %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

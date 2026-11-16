@@ -1,0 +1,15 @@
+{# Aviso formal (1.º ato): fica visível até a pessoa o confirmar. #}
+<div class="tu-warning-banner" role="alert">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.8 19.5h18.4z"/><path d="M12 10v4.2M12 17.2v.1"/></svg>
+  <div>
+    <b>Aviso formal · {{ warning_labels[pending_warning.kind] }}</b>
+    <span>No dia {{ pending_warning.created_at|local('%d/%m/%Y às %H:%M') }} enviou conteúdo que viola as
+      <a href="{{ url_for('rules') }}#seguranca">regras da comunidade</a> ({{ pending_warning.context }}). O conteúdo não foi publicado.
+      <strong>Se voltar a acontecer, a conta é banida automaticamente.</strong></span>
+  </div>
+  <form method="post" action="{{ url_for('warnings_seen') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path if request.method == 'GET' else url_for('index') }}">
+    <button class="btn btn-sm btn-dark" type="submit">Compreendi</button>
+  </form>
+</div>

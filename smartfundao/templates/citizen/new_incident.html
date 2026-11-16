@@ -3,8 +3,20 @@
 {% block title %}Comunicar ocorrência{% endblock %}
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
 {% block content %}
+{% if not can_report %}
+<div class="tu-unavailable">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+  <div class="tu-eyebrow">{{ g.user.municipality }}{% if g.user.district %} · {{ g.user.district }}{% endif %}</div>
+  <h1>Ainda não disponível no seu concelho</h1>
+  <p>O Townly Up está preparado para os 308 concelhos de Portugal, mas só pode comunicar problemas quando a Câmara Municipal de {{ g.user.municipality }} aderir. Por agora está ativo no concelho do Fundão.</p>
+  <div class="d-flex gap-2 justify-content-center flex-wrap">
+    <a class="btn btn-primary" href="{{ url_for('live_map') }}">Explorar o mapa</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('settings') }}#concelho">Mudar o meu concelho</a>
+  </div>
+</div>
+{% else %}
 {# Passo em que há erros (para o assistente abrir logo aí depois de uma validação falhada) #}
-{% set error_step = 1 if errors.get('category_id') else (2 if errors.get('photos') or errors.get('description') or errors.get('title') or errors.get('privacy') else (3 if errors.get('location') else 1)) %}
+{% set error_step = 1 if errors.get('category_id') or errors.get('subcategory_id') else (2 if errors.get('photos') or errors.get('description') or errors.get('title') or errors.get('privacy') else (3 if errors.get('location') else 1)) %}
 <div class="row justify-content-center">
   <div class="col-lg-8 col-xl-7">
     <div class="tu-page-head mb-3">
@@ -28,6 +40,22 @@
           {% endfor %}
         </div>
         {{ field_error(errors, 'category_id') }}
+
+        {# Subtipo (aparece depois de escolher a categoria) #}
+        <div class="tu-subcats" id="subcats" {{ '' if form.get('category_id') else 'hidden' }}>
+          <p class="tu-subcats-title">E mais concretamente?</p>
+          {% for c in categories %}
+            <div class="tu-subcat-group" data-cat="{{ c.id }}" {{ '' if form.get('category_id') == c.id|string else 'hidden' }}>
+              {% for sc in subcategories.get(c.id, []) %}
+                <label class="tu-subcat">
+                  <input type="radio" name="subcategory_id" value="{{ sc.id }}" {{ 'checked' if form.get('subcategory_id') == sc.id|string }} {{ '' if form.get('category_id') == c.id|string else 'disabled' }}>
+                  <span>{{ sc.name }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          {% endfor %}
+          {{ field_error(errors, 'subcategory_id') }}
+        </div>
       </section>
 
       <!-- PASSO 2: fotografia e descrição -->
@@ -39,15 +67,15 @@
             <i class="bi bi-camera-fill"></i><span>Tirar fotografia</span><small>Abrir a câmara</small>
           </button>
           <label class="tu-photo-btn" for="photos-gallery">
-            <i class="bi bi-images"></i><span>Escolher da galeria</span><small>JPEG, PNG ou WebP</small>
+            <i class="bi bi-images"></i><span>Escolher da galeria</span><small>Até 3 fotografias</small>
           </label>
         </div>
         <!-- Auxiliares (sem name: não são enviados; o JavaScript junta tudo em #photos) -->
-        <input type="file" id="photos-gallery" accept="image/jpeg,image/png,image/webp" multiple class="visually-hidden" tabindex="-1">
+        <input type="file" id="photos-gallery" accept="image/*" multiple class="visually-hidden" tabindex="-1">
         <input type="file" id="photos-capture" accept="image/*" capture="environment" class="visually-hidden" tabindex="-1">
 
         <input class="form-control{{ invalid(errors, 'photos') }}" type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/webp" multiple required>
-        <div class="form-text" id="photos-help">1 a {{ max_images }} fotografias · até 5 MB cada.{% if form %} Volte a tirar ou escolher as fotografias.{% endif %}</div>
+        <div class="form-text" id="photos-help">1 a {{ max_images }} fotografias. São endireitadas e reduzidas automaticamente para um envio rápido.{% if form %} Volte a tirar ou escolher as fotografias.{% endif %}</div>
         {{ field_error(errors, 'photos') }}
         <div id="photo-preview" class="tu-photo-grid my-3"></div>
 
@@ -63,7 +91,7 @@
 
         <div class="form-check mt-3">
           <input class="form-check-input{{ invalid(errors, 'privacy') }}" type="checkbox" id="privacy" name="privacy" value="1" {{ 'checked' if form.get('privacy') }}>
-          <label class="form-check-label small" for="privacy">As fotografias mostram apenas o problema, sem pessoas identificáveis, menores ou matrículas.</label>
+          <label class="form-check-label small" for="privacy">As fotografias mostram apenas o problema, sem pessoas identificáveis, menores ou matrículas. A 1.ª fotografia pode aparecer em «Últimas ocorrências» na página inicial.</label>
           {{ field_error(errors, 'privacy') }}
         </div>
       </section>
@@ -86,6 +114,11 @@
           </div>
         </div>
         {{ field_error(errors, 'location') }}
+        <input type="hidden" name="address" id="address" value="{{ form.get('address', '') }}">
+        <div class="tu-address" id="address-box" {{ '' if form.get('address') else 'hidden' }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+          <span><small>Morada aproximada</small><b id="address-text">{{ form.get('address', '') }}</b></span>
+        </div>
 
         <!-- RF14: deteção de repetidos. Preenchido pelo JavaScript antes de enviar;
              sem JavaScript, o servidor mostra aqui as ocorrências parecidas. -->
@@ -134,10 +167,56 @@
   </div>
   <button type="button" class="btn btn-success tu-camera-done" id="camera-done" hidden><i class="bi bi-check-lg"></i> Concluído</button>
 </div>
+{% endif %}
 {% endblock %}
-{% block scripts %}
+{% block scripts %}{% if can_report %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ url_for('static', filename='js/map.js') }}"></script>
-<script src="{{ url_for('static', filename='js/photos.js') }}"></script>
-<script src="{{ url_for('static', filename='js/new_incident.js') }}"></script>
-{% endblock %}
+<script>
+  // Subtipos: mostram-se os da categoria escolhida (os outros ficam desativados para não serem enviados).
+  (function () {
+    const box = document.getElementById('subcats');
+    document.querySelectorAll('input[name="category_id"]').forEach(r => r.addEventListener('change', () => {
+      box.hidden = false;
+      box.querySelectorAll('.tu-subcat-group').forEach(g => {
+        const on = g.dataset.cat === r.value;
+        g.hidden = !on;
+        g.querySelectorAll('input').forEach(i => { i.disabled = !on; if (!on) i.checked = false; });
+      });
+    }));
+  })();
+
+  // Morada da rua a partir do ponto escolhido (OpenStreetMap / Nominatim). Sem internet, fica só a freguesia.
+  (function () {
+    const lat = document.getElementById('latitude'), lng = document.getElementById('longitude');
+    const out = document.getElementById('address'), box = document.getElementById('address-box'), text = document.getElementById('address-text');
+    let timer, lastKey = '';
+    function compose(a) {
+      const street = [a.road || a.pedestrian || a.footway || a.square || a.neighbourhood, a.house_number].filter(Boolean).join(' ');
+      const place = a.village || a.town || a.hamlet || a.suburb || a.city || '';
+      return [street, [a.postcode, place].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    }
+    async function lookup() {
+      const la = parseFloat(lat.value), lo = parseFloat(lng.value);
+      if (!isFinite(la) || !isFinite(lo)) return;
+      const key = la.toFixed(5) + ',' + lo.toFixed(5);
+      if (key === lastKey) return;
+      lastKey = key;
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=pt&lat=${la}&lon=${lo}`,
+                              { headers: { 'Accept': 'application/json' } });
+        if (!r.ok) return;
+        const j = await r.json();
+        const value = compose(j.address || {}).slice(0, 200);
+        if (key !== lastKey || !value) return;
+        out.value = value; text.textContent = value; box.hidden = false;
+      } catch (e) { /* sem internet: segue sem morada */ }
+    }
+    const later = () => { clearTimeout(timer); timer = setTimeout(lookup, 700); };   // máx. ~1 pedido/s (regras do Nominatim)
+    document.addEventListener('tu-location', later);
+    lat.addEventListener('change', later); lng.addEventListener('change', later);
+  })();
+</script>
+<script src="{{ url_for('static', filename='js/photos.js') }}?v={{ asset_version }}"></script>
+<script src="{{ url_for('static', filename='js/new_incident.js') }}?v={{ asset_version }}"></script>
+{% endif %}{% endblock %}

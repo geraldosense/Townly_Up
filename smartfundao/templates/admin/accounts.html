@@ -1,37 +1,181 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field_error, invalid %}
-{% block title %}Contas das entidades{% endblock %}
+{% block title %}Câmaras Municipais{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+{% set chev = '<svg class="tu-s-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' %}
+{% set building = '<path d="M3.5 20.5h17M5 20.5v-9M19 20.5v-9M9.5 20.5v-9M14.5 20.5v-9M2.5 10 12 4l9.5 6z"/>' %}
 {% block content %}
-<div class="tu-page-head">
-  <div>
-    <div class="tu-eyebrow">Câmara Municipal</div>
-    <h1>Contas das entidades</h1>
-  </div>
-</div>
-<p class="text-muted" style="max-width: 62ch">Os técnicos das Juntas de Freguesia e dos serviços municipais não se registam sozinhos:
-  é a Câmara que lhes cria a conta e a liga à entidade. Cada técnico vê e trata apenas as ocorrências da sua entidade.</p>
+{# Conta principal (plataforma): as Câmaras de cada concelho, os pedidos de acesso e as contas. Estilo das Definições. #}
+{% set active_n = camaras|selectattr('accounts')|list|length %}
+<div class="tu-s tu-a">
+  <header class="tu-s-head">
+    <p>Plataforma Townly Up</p>
+    <h1>Câmaras Municipais</h1>
+  </header>
 
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="tu-card"><div class="card-body">
-      <h2 class="tu-section">Nova conta</h2>
-      <form method="post" novalidate>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="mb-3">
+  <div class="tu-a-stats">
+    <div><b>{{ active_n }}</b><span>{{ 'concelho ativo' if active_n == 1 else 'concelhos ativos' }}</span></div>
+    <div><b>{{ requests|length }}</b><span>{{ 'pedido' if requests|length == 1 else 'pedidos' }} por tratar</span></div>
+    <div><b>{{ accounts|selectattr('active')|list|length }}</b><span>contas ativas</span></div>
+  </div>
+
+  {# ================================================================ Câmaras #}
+  <section>
+    <h2 class="tu-s-sec">Câmaras na plataforma</h2>
+    <div class="tu-s-list">
+      {% for c in camaras %}
+        <div class="tu-s-row is-static">
+          <svg class="tu-s-ico" {{ ico|safe }}>{{ building|safe }}</svg>
+          <span><b>{{ c.municipality }}</b><small>{{ c.accounts }} {{ 'conta' if c.accounts == 1 else 'contas' }} · {{ c.incidents }} {{ 'ocorrência' if c.incidents == 1 else 'ocorrências' }}</small></span>
+          {% if c.accounts %}<em class="tu-a-pill is-on">Ativa</em>{% else %}<em class="tu-a-pill">Sem conta</em>{% endif %}
+        </div>
+      {% else %}
+        <p class="tu-a-empty">Ainda não há Câmaras. Crie a primeira em «Adicionar Câmara».</p>
+      {% endfor %}
+      <a class="tu-s-row tu-a-add" href="#camara">
+        <svg class="tu-s-ico" {{ ico|safe }}><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>
+        <span><b>Adicionar Câmara</b></span>{{ chev|safe }}
+      </a>
+    </div>
+    <p class="tu-s-hint">Um concelho fica ativo quando a sua Câmara tem uma conta: os munícipes de lá passam a poder comunicar e as ocorrências seguem para essa Câmara.</p>
+  </section>
+
+  {# ================================================================ Pedidos #}
+  <section id="pedidos">
+    <h2 class="tu-s-sec">Pedidos de acesso{% if requests %} · {{ requests|length }}{% endif %}</h2>
+    <div class="tu-s-list">
+      {% for r in requests %}
+        <div class="tu-s-row is-static tu-a-request">
+          <svg class="tu-s-ico" {{ ico|safe }}><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
+          <span><b>{{ r.entity_name }}</b>
+            <small>{{ r.municipality }} ({{ r.district }}) · {{ r.created_at|local('%d/%m/%Y') }}</small>
+            <small>{{ r.contact_name }} · <a href="mailto:{{ r.email }}">{{ r.email }}</a>{% if r.phone %} · {{ r.phone }}{% endif %}</small>
+            {% if r.message %}<small class="tu-a-quote">«{{ r.message }}»</small>{% endif %}</span>
+          <div class="tu-a-actions">
+            {% if r.kind == 'camara' %}<a class="tu-a-btn is-primary" href="{{ url_for('admin_accounts', pedido=r.id) }}#camara">Criar conta</a>{% endif %}
+            <form method="post" action="{{ url_for('admin_close_request', request_id=r.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="tu-a-btn" type="submit" title="Depois de criar a conta (ou recusar)">Tratado</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p class="tu-a-empty">Sem pedidos novos. As Câmaras pedem acesso no ecrã de entrada, em «Câmara › Pedir acesso».</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ================================================================ Nova Câmara #}
+  {% set cf, ce = camara_form or {}, camara_errors or {} %}
+  <section id="camara">
+    <h2 class="tu-s-sec">Nova Câmara Municipal</h2>
+    <form method="post" action="{{ url_for('admin_create_camara') }}" novalidate id="camara-form" data-active='{{ territory.active|tojson }}'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="tu-s-list">
+        <label class="tu-s-row tu-s-select{{ ' is-invalid' if ce.get('district') }}" for="c-district">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+          <span>Distrito</span>
+          <select id="c-district" name="district" required>
+            <option value="">Escolher…</option>
+            {% for d in territory.districts %}<option value="{{ d }}" {{ 'selected' if cf.get('district') == d }}>{{ d }}</option>{% endfor %}
+          </select>{{ chev|safe }}
+        </label>
+        {{ field_error(ce, 'district') }}
+        <label class="tu-s-row tu-s-select{{ ' is-invalid' if ce.get('municipality') }}" for="c-municipality">
+          <svg class="tu-s-ico" {{ ico|safe }}>{{ building|safe }}</svg>
+          <span>Concelho</span>
+          <select id="c-municipality" name="municipality" required data-selected="{{ cf.get('municipality', '') }}"></select>{{ chev|safe }}
+        </label>
+        {{ field_error(ce, 'municipality') }}
+        <p class="tu-s-note" id="c-note" hidden></p>
+      </div>
+
+      <div class="tu-s-list">
+        <label class="tu-s-row tu-a-field" for="c-name"><span>Responsável</span>
+          <input class="{{ invalid(ce, 'name') }}" id="c-name" name="name" value="{{ cf.get('name', '') }}" maxlength="100" placeholder="Nome e apelido" required></label>
+        {{ field_error(ce, 'name') }}
+        <label class="tu-s-row tu-a-field" for="c-email"><span>Email</span>
+          <input class="{{ invalid(ce, 'email') }}" type="email" id="c-email" name="email" value="{{ cf.get('email', '') }}" maxlength="120" placeholder="nome@cm-concelho.pt" required></label>
+        {{ field_error(ce, 'email') }}
+        <label class="tu-s-row tu-a-field" for="c-phone"><span>Telemóvel</span>
+          <input class="{{ invalid(ce, 'phone') }}" type="tel" inputmode="tel" id="c-phone" name="phone" value="{{ cf.get('phone', '') }}" placeholder="Opcional"></label>
+        {{ field_error(ce, 'phone') }}
+        <label class="tu-s-row tu-a-field" for="c-password"><span>Palavra-passe</span>
+          <input class="{{ invalid(ce, 'password') }}" type="text" id="c-password" name="password" autocomplete="off" placeholder="Temporária" required></label>
+        {{ field_error(ce, 'password') }}
+        <div class="tu-s-actions"><button class="tu-s-btn" type="submit">Criar conta da Câmara</button></div>
+      </div>
+      <p class="tu-s-hint">A palavra-passe tem 8+ caracteres, com letras e números. Entregue-a ao responsável: ele muda-a em «A minha conta».</p>
+    </form>
+    <script type="application/json" id="camara-territory">{{ territory.districts|tojson }}</script>
+  </section>
+
+  {# ================================================================ Contas #}
+  <section id="contas">
+    <h2 class="tu-s-sec">Contas · {{ accounts|length }}</h2>
+    <div class="tu-s-list">
+      {% for a in accounts %}
+        <div class="tu-s-row is-static{{ ' is-off' if not a.active }}">
+          <span class="tu-a-initials" aria-hidden="true">{{ a.name|initials }}</span>
+          <span><b>{{ a.name }}</b>
+            <small>{{ a.email }}</small>
+            <small>{{ 'Conta principal' if a.role == 'admin' else a.org_name }}{% if a.org_kind != 'camara' and a.org_municipality %} · {{ a.org_municipality }}{% endif %}
+              · {{ ('último acesso ' ~ (a.last_login_at|local('%d/%m/%Y'))) if a.last_login_at else 'nunca entrou' }}</small></span>
+          {% if a.id == g.user.id %}<em class="tu-a-pill">A sua conta</em>
+          {% else %}
+            <form method="post" action="{{ url_for('admin_account_toggle', user_id=a.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="active" value="{{ '0' if a.active else '1' }}">
+              <button class="tu-a-btn{{ ' is-primary' if not a.active }}" type="submit">{{ 'Desativar' if a.active else 'Reativar' }}</button>
+            </form>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="tu-a-empty">Ainda não há contas.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ================================================================ Mais opções #}
+  <section>
+    <h2 class="tu-s-sec">Mais opções</h2>
+    <div class="tu-s-list">
+      <details class="tu-a-more" id="converter">
+        <summary class="tu-s-row">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M4 8h12l-3-3M20 16H8l3 3"/></svg>
+          <span><b>Converter conta de cidadão</b><small>Quando um funcionário criou conta como cidadão.</small></span>{{ chev|safe }}
+        </summary>
+        <form method="post" action="{{ url_for('admin_convert_account') }}" class="tu-a-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <p>Mantém o email e a palavra-passe; deixa de comunicar como cidadão e passa a tratar ocorrências.</p>
+          <label class="form-label" for="cv-email">Email da conta</label>
+          <input class="form-control mb-2" type="email" id="cv-email" name="email" required>
+          <label class="form-label" for="cv-org">Entidade</label>
+          <select class="form-select mb-3" id="cv-org" name="organization_id" required>
+            <option value="">Escolher…</option>
+            {% for o in organizations %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}
+          </select>
+          <button class="tu-s-btn" type="submit">Converter em conta da entidade</button>
+        </form>
+      </details>
+
+      <details class="tu-a-more" id="entidades-fundao" {{ 'open' if errors }}>
+        <summary class="tu-s-row">
+          <svg class="tu-s-ico" {{ ico|safe }}><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.6-3.3 2.8-5.2 5.5-5.2s4.9 1.9 5.5 5.2"/><path d="M16 5.5a3 3 0 0 1 0 5.6M18 14.6c1.4.7 2.3 2.4 2.6 4.9"/></svg>
+          <span><b>Juntas e serviços do Fundão</b><small>Contas dos técnicos que já existiam no Fundão.</small></span>{{ chev|safe }}
+        </summary>
+        <form method="post" action="{{ url_for('admin_accounts') }}" class="tu-a-form" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label class="form-label" for="name">Nome</label>
           <input class="form-control{{ invalid(errors, 'name') }}" id="name" name="name" value="{{ form.get('name', '') }}" maxlength="100" required>
           {{ field_error(errors, 'name') }}
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="email">Email profissional</label>
+          <label class="form-label mt-2" for="email">Email profissional</label>
           <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" maxlength="120" required>
           {{ field_error(errors, 'email') }}
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="organization_id">Entidade</label>
+          <label class="form-label mt-2" for="organization_id">Entidade</label>
           <select class="form-select{{ invalid(errors, 'organization_id') }}" id="organization_id" name="organization_id" required>
             <option value="">Escolher…</option>
-            {% for kind, label in [('camara', 'Câmara Municipal'), ('servico', 'Serviços técnicos'), ('junta', 'Juntas de Freguesia')] %}
+            {% for kind, label in [('servico', 'Serviços técnicos'), ('junta', 'Juntas de Freguesia')] %}
               <optgroup label="{{ label }}">
                 {% for o in organizations if o.kind == kind %}
                   <option value="{{ o.id }}" {{ 'selected' if form.get('organization_id') == o.id|string }}>{{ o.name }}</option>
@@ -40,86 +184,50 @@
             {% endfor %}
           </select>
           {{ field_error(errors, 'organization_id') }}
-        </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="central" name="central" value="1" {{ 'checked' if form.get('central') }}>
-          <label class="form-check-label small" for="central">Gestor central (só para a Câmara: vê tudo, reencaminha e gere contas)</label>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="password">Palavra-passe temporária</label>
+          <label class="form-label mt-2" for="password">Palavra-passe temporária</label>
           <input class="form-control{{ invalid(errors, 'password') }}" type="text" id="password" name="password" autocomplete="off" required>
           {{ field_error(errors, 'password') }}
-          <div class="form-text">8+ caracteres, com letras e números. A pessoa muda-a depois em «A minha conta».</div>
-        </div>
-        <button class="btn btn-primary w-100" type="submit">Criar conta</button>
-      </form>
-    </div></div>
-  </div>
+          <div class="form-text mb-3">8+ caracteres, com letras e números.</div>
+          <button class="tu-s-btn" type="submit">Criar conta</button>
+        </form>
+      </details>
 
-  <div class="col-lg-8">
-    <div class="tu-card"><div class="card-body">
-      <h2 class="tu-section">Contas existentes · {{ accounts|length }}</h2>
-      {% if accounts %}
-      <div class="table-responsive">
-        <table class="table align-middle tu-table mb-0">
-          <thead><tr><th>Nome</th><th>Entidade</th><th class="d-none d-md-table-cell">Último acesso</th><th>Estado</th></tr></thead>
-          <tbody>
-            {% for a in accounts %}
-              <tr class="{{ 'text-muted' if not a.active }}">
-                <td><div class="fw-semibold">{{ a.name }}</div><div class="small text-muted">{{ a.email }}</div></td>
-                <td class="small">{{ a.org_name }}{% if a.role == 'admin' %}<div class="text-muted">Gestor central</div>{% endif %}</td>
-                <td class="d-none d-md-table-cell small">{{ a.last_login_at|local('%d/%m/%Y %H:%M') if a.last_login_at else 'Nunca' }}</td>
-                <td>
-                  {% if a.id == g.user.id %}<span class="small text-muted">A sua conta</span>
-                  {% else %}
-                  <form method="post" action="{{ url_for('admin_account_toggle', user_id=a.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="active" value="{{ '0' if a.active else '1' }}">
-                    <button class="btn btn-sm {{ 'btn-outline-secondary' if a.active else 'btn-outline-primary' }}" type="submit">{{ 'Desativar' if a.active else 'Reativar' }}</button>
-                  </form>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-        <p class="text-muted mb-0">Ainda não há contas de entidades.</p>
+      {% if test_allowed %}
+      <details class="tu-a-more" id="teste" {{ 'open' if test_active }}>
+        <summary class="tu-s-row">
+          <svg class="tu-s-ico" {{ ico|safe }}><path d="M9 3.5h6M10 3.5v5L5 18a1.5 1.5 0 0 0 1.3 2.5h11.4A1.5 1.5 0 0 0 19 18l-5-9.5v-5"/></svg>
+          <span><b>Contas de teste</b><small>Só neste computador: supervisão, 23 Juntas e 6 serviços (@townlyup.test).</small></span>{{ chev|safe }}
+        </summary>
+        <div class="tu-a-form">
+          <form method="post" action="{{ url_for('admin_test_accounts') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if test_active %}
+              <button class="tu-s-btn is-ghost" type="submit" name="action" value="remover">Desativar contas de teste</button>
+            {% else %}
+              <button class="tu-s-btn" type="submit" name="action" value="criar">Criar contas de teste</button>
+            {% endif %}
+          </form>
+          {% if test_active %}
+            <p class="mt-3 mb-2"><b>Palavra-passe de todas:</b> <code class="tu-code-pill">{{ test_password }}</code></p>
+            <ul class="tu-a-testlist">
+              {% for name, email, role, kind, value in test_plan %}
+                <li><code>{{ email }}</code><span>{{ name }}{% if role == 'admin' %} · vê a Supervisão{% endif %}</span></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </details>
       {% endif %}
-    </div></div>
-  </div>
+    </div>
+  </section>
 </div>
-{% if test_allowed %}
-<section class="tu-card mt-4" id="teste"><div class="card-body">
-  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-    <div>
-      <h2 class="tu-section mb-1">Contas de teste</h2>
-      <p class="text-muted small mb-0" style="max-width: 62ch">Para experimentar a aplicação no seu computador: uma conta de supervisão, uma por Junta (23) e uma por serviço técnico (6).
-        Usam o domínio reservado <code>@townlyup.test</code> (nunca é um email real). Este quadro não aparece no site público.</p>
-    </div>
-    <form method="post" action="{{ url_for('admin_test_accounts') }}" class="d-flex gap-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      {% if test_active %}
-        <button class="btn btn-outline-secondary" type="submit" name="action" value="remover">Desativar contas de teste</button>
-      {% else %}
-        <button class="btn btn-primary" type="submit" name="action" value="criar">Criar contas de teste</button>
-      {% endif %}
-    </form>
-  </div>
-  {% if test_active %}
-    <p class="mt-3 mb-2"><b>Palavra-passe de todas:</b> <code class="tu-code-pill">{{ test_password }}</code></p>
-    <div class="table-responsive">
-      <table class="table tu-table align-middle mb-0 small">
-        <thead><tr><th>Email para entrar</th><th>Entidade</th></tr></thead>
-        <tbody>
-          {% for name, email, role, kind, value in test_plan %}
-            <tr><td><code>{{ email }}</code></td><td>{{ name }}{% if role == 'admin' %} <span class="text-muted">· vê a Supervisão</span>{% endif %}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
-</div></section>
-{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/territory.js') }}?v={{ asset_version }}"></script>
+<script>
+  TownlyTerritory.bind({ district: document.getElementById('c-district'), municipality: document.getElementById('c-municipality'),
+    note: document.getElementById('c-note'), data: JSON.parse(document.getElementById('camara-territory').textContent),
+    active: JSON.parse(document.getElementById('camara-form').dataset.active) });
+</script>
 {% endblock %}

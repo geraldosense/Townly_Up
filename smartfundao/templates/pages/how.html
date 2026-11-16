@@ -1,68 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Como funciona{% endblock %}
 {% block content %}
-<article class="tu-how">
-  <header class="tu-how-intro">
-    <div class="tu-eyebrow">Guia</div>
-    <h1>Como funciona o Townly Up</h1>
-    <p>Do buraco na estrada ao candeeiro apagado: qualquer pessoa do concelho pode comunicar um problema no espaço público e acompanhar o que acontece a seguir — em três passos.</p>
+{# Guia com imagens reais da aplicação num telemóvel (capturas do próprio Townly Up). #}
+<article class="tu-how2">
+  <header class="tu-how2-intro">
+    <p class="tu-eyebrow">Como funciona</p>
+    <h1>Viu um problema na rua? Comunique-o em menos de um minuto.</h1>
+    <p>O Townly Up liga quem vive no concelho aos serviços que cuidam do espaço público. Abaixo está o caminho completo, com imagens da aplicação: da fotografia até ao problema resolvido.</p>
   </header>
 
   {% set steps = [
-    ('1-comunicar.svg', '01', 'Comunique', 'Escolha o tipo de problema, tire uma fotografia e marque o local no mapa. Recebe logo um número de referência — por exemplo TU-2026-0042 — no ecrã e por email.',
-      ['Fotografia tirada na hora ou da galeria', 'Localização pelo GPS do telemóvel', 'Dados de localização da foto removidos']),
-    ('2-encaminhar.svg', '02', 'Chega à entidade certa', 'O pedido é encaminhado automaticamente: para o serviço técnico da categoria (obras, iluminação, limpeza…) ou para a Junta da freguesia onde fica o problema. A Câmara acompanha tudo e reencaminha quando é preciso.',
-      ['Freguesia calculada pelos limites oficiais (CAOP)', 'Quem segue a freguesia recebe um alerta']),
-    ('3-acompanhar.svg', '03', 'Acompanhe até ao fim', 'Cada mudança — em análise, em tratamento, resolvida — fica registada com data e observação, e recebe um alerta no sino. O histórico nunca é apagado.',
-      ['Linha temporal pública para o autor', 'Alertas na aplicação']),
+    ('1-categoria', 'Escolha o tipo de problema',
+      'Toque em «comunicar» na barra de baixo. Escolha a categoria (vias e pavimentos, iluminação, limpeza, espaços verdes…) e depois o caso concreto, por exemplo «Buraco no pavimento».',
+      'A categoria decide quem recebe o pedido: um serviço técnico da Câmara ou a Junta de Freguesia.'),
+    ('2-fotografia', 'Tire uma fotografia',
+      'Fotografe na hora ou escolha da galeria, até 3 imagens. Depois escreva uma frase curta a explicar o que se passa.',
+      'As fotografias são endireitadas e reduzidas antes do envio, e a localização guardada dentro da imagem é apagada.'),
+    ('3-local', 'Confirme o local',
+      'O marcador aparece onde está. Se o problema for um pouco mais à frente, arraste-o até ao sítio certo.',
+      'Antes de enviar, a aplicação avisa se alguém já comunicou o mesmo problema ali perto.'),
+    ('4-numero', 'Guarde o número de referência',
+      'Assim que envia, recebe um número (por exemplo TU-2026-0042) no ecrã e por email. É a forma mais rápida de perguntar pelo pedido.',
+      'O pedido segue logo para a entidade responsável, sem ter de telefonar nem escrever a ninguém.'),
+    ('5-mapa', 'Veja tudo no mapa',
+      'Cada ocorrência aparece no mapa do concelho com a cor do estado: vermelho quando foi recebida, amarelo em execução e verde quando ficou concluída.',
+      'Se encontrar um problema que já lá está, abra-o e carregue em «Eu também vi». O pedido ganha força sem ficar repetido.'),
+    ('6-estado', 'Acompanhe até ao fim',
+      'Sempre que a Câmara ou a Junta muda o estado, recebe um alerta no sino com a observação de quem está a tratar. Tudo fica registado com data.',
+      'Quando o problema é resolvido, pode confirmar se ficou bem feito.'),
   ] %}
-  {% for img, n, title, text, points in steps %}
-    <section class="tu-how-step {{ 'is-reverse' if loop.index is even }}">
-      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/' ~ img) }}" alt="" loading="lazy" width="480" height="320"></figure>
-      <div class="tu-how-text">
-        <span class="tu-how-num">{{ n }}</span>
-        <h2>{{ title }}</h2>
-        <p>{{ text }}</p>
-        <ul>{% for p in points %}<li>{{ p }}</li>{% endfor %}</ul>
-      </div>
-    </section>
-  {% endfor %}
 
-  <section class="tu-how-pair">
-    <div class="tu-how-card">
-      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/4-repetidos.svg') }}" alt="" loading="lazy" width="480" height="320"></figure>
-      <h2>Sem pedidos repetidos</h2>
-      <p>Antes de enviar, o sistema compara o pedido com os que já existem por perto — local, tipo de problema, descrição e fotografia. Se alguém já comunicou o mesmo, basta carregar em «Eu também vi»: o pedido ganha força sem criar trabalho em duplicado.</p>
-    </div>
-    <div class="tu-how-card">
-      <figure class="tu-how-figure"><img src="{{ url_for('static', filename='img/como/5-resolvida.svg') }}" alt="" loading="lazy" width="480" height="320"></figure>
-      <h2>Resolvido — e reconhecido</h2>
-      <p>Quando o problema é resolvido, vê a nota e a fotografia da intervenção. Quem participa ganha pontos e sobe de nível: não valem dinheiro, servem para reconhecer quem ajuda a cuidar do concelho.</p>
-    </div>
+  <ol class="tu-how2-steps">
+    {% for img, title, text, tip in steps %}
+      <li class="tu-how2-step {{ 'is-reverse' if loop.index is even }}">
+        <figure class="tu-phone" aria-hidden="true">
+          <div class="tu-phone-screen">
+            <img src="{{ url_for('static', filename='img/como/' ~ img ~ '.webp') }}" alt="" width="390" height="844" loading="{{ 'eager' if loop.first else 'lazy' }}" decoding="async">
+          </div>
+        </figure>
+        <div class="tu-how2-text">
+          <span class="tu-how2-num">Passo {{ loop.index }}</span>
+          <h2>{{ title }}</h2>
+          <p>{{ text }}</p>
+          <p class="tu-how2-tip">{{ tip }}</p>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+  <p class="tu-how2-note">Imagens da aplicação Townly Up num telemóvel. A ocorrência mostrada é um exemplo.</p>
+
+  <section class="tu-how2-block" id="quem">
+    <h2>Quem trata do quê</h2>
+    <ul class="tu-how2-list">
+      <li><span class="tu-how2-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6"/></svg></span>
+        <div><b>Munícipes</b><span>Comunicam e acompanham os problemas.</span></div></li>
+      <li><span class="tu-how2-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.4 2.4-2.6-.6-.6-2.6z"/></svg></span>
+        <div><b>Juntas e serviços técnicos</b><span>Resolvem os pedidos da sua área.</span></div></li>
+      <li><span class="tu-how2-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17M5 20.5v-9M19 20.5v-9M9.5 20.5v-9M14.5 20.5v-9M2.5 10 12 4l9.5 6z"/></svg></span>
+        <div><b>Câmara Municipal</b><span>Coordena tudo e define prioridades.</span></div></li>
+    </ul>
   </section>
 
-  <section class="tu-how-points">
+  <section class="tu-how2-block">
     <h2>Pontos de participação</h2>
-    <dl>
-      <div><dt>+{{ points.report }}</dt><dd>Comunicar uma ocorrência</dd></div>
-      <div><dt>+{{ points.confirm_seen }}</dt><dd>«Eu também vi»</dd></div>
-      <div><dt>+{{ points.confirm_fixed }}</dt><dd>Indicar que já foi resolvido</dd></div>
-      <div><dt>+{{ points.resolved }}</dt><dd>A sua ocorrência foi resolvida</dd></div>
-    </dl>
+    <p class="tu-how2-lede">Reconhecem quem ajuda a cuidar do concelho. Não valem dinheiro.</p>
+    <ul class="tu-how2-list tu-how2-pts">
+      <li><div><b>Comunicar uma ocorrência</b></div><em>+{{ points.report }}</em></li>
+      <li><div><b>A sua ocorrência foi resolvida</b></div><em>+{{ points.resolved }}</em></li>
+      <li><div><b>«Eu também vi»</b></div><em>+{{ points.confirm_seen }}</em></li>
+      <li><div><b>Indicar que já foi resolvido</b></div><em>+{{ points.confirm_fixed }}</em></li>
+    </ul>
   </section>
 
-  <section class="tu-how-who" id="quem">
-    <h2>Quem recebe os pedidos</h2>
-    <div class="tu-how-who-grid">
-      <div><b>Munícipes</b><p>Comunicam, confirmam o que outros viram e recebem alertas.</p></div>
-      <div><b>Juntas e serviços técnicos</b><p>Tratam os pedidos da sua freguesia ou da sua área.</p></div>
-      <div><b>Câmara Municipal</b><p>Vê tudo, define prioridades e reencaminha quando é preciso.</p></div>
-    </div>
-  </section>
+  <aside class="tu-how2-sos" role="note">
+    <span class="tu-how2-sos-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
+    <div><b>Em caso de emergência, ligue 112</b><span>O Townly Up não serve para situações urgentes.</span></div>
+  </aside>
 
-  <div class="tu-callout"><b>Emergências:</b> este serviço não é para situações urgentes. Em caso de perigo para pessoas ou bens, ligue <b>112</b>.</div>
   <div class="d-flex flex-wrap gap-3 mt-4">
-    {% if not g.user or g.user.role == 'citizen' %}<a class="btn btn-primary" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>{% endif %}
+    {% if not g.user or g.user.role == 'citizen' %}<a class="btn btn-primary tu-desktop-only" href="{{ url_for('new_incident') }}">Comunicar ocorrência</a>{% endif %}
     <a class="tu-link-arrow align-self-center" href="{{ url_for('rules') }}">Regras da comunidade →</a>
   </div>
 </article>

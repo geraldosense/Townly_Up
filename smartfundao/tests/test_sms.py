@@ -1,4 +1,4 @@
-"""Responsáveis por freguesia, SMS de novas ocorrências e dados da conta principal."""
+"""SMS de novas ocorrências para as contas das Juntas e dados da conta principal."""
 import sms
 import services as sv
 from db import get_db
@@ -8,9 +8,16 @@ SEDE = "050434"          # o ponto dos testes (40.1405, -7.5012) fica na UF de F
 ALPEDRINHA = "050406"
 
 
-def new_manager(client, parish=SEDE, email="fundao@townly.pt", phone="912 345 678"):
-    return client.post("/admin/freguesias", data={"parish_code": parish, "name": "Junta do Fundão",
-                                                  "email": email, "phone": phone, "password": "Temp12345"})
+def new_manager(client, parish=SEDE, email="fundao@townly.pt", phone="912 345 678", app=None):
+    """Conta de uma Junta do Fundão com telemóvel (já não há página de «responsáveis por freguesia»)."""
+    from security import hash_password
+    with (app or client.application).app_context():
+        db = get_db()
+        org = sv.organization_by(db, "junta", parish)
+        uid = sv.create_user(db, "Junta do Fundão", email, hash_password("Temp12345"), role="staff", organization_id=org["id"])
+        with db:
+            db.execute("UPDATE users SET phone = ?, sms_alerts = TRUE WHERE id = ?", (sms.normalize_phone(phone), uid))
+    return uid
 
 
 # ------------------------------------------------------------------ números e texto
@@ -32,53 +39,34 @@ def test_sms_cabe_numa_mensagem_e_sem_acentos():
     assert text.endswith("Ver: https://townlyup.pt/admin/incidents/42") and "..." in text
 
 
-# ------------------------------------------------------------------ página da conta principal
-def test_so_a_conta_principal_gere_os_responsaveis(client):
-    login(client, "ana@teste.pt")
-    assert client.get("/admin/freguesias").status_code == 403
-
-
-def test_criar_responsavel_e_receber_sms(client, app, sent_sms):
-    login(client, "rui@teste.pt")
-    page = client.get("/admin/freguesias").get_data(as_text=True)
-    assert "0<span> / 23" in page and "Sem responsável" in page
-    assert new_manager(client).status_code == 302
-    page = client.get("/admin/freguesias").get_data(as_text=True)
-    assert "1<span> / 23" in page and "+351 912 345 678" in page and "SMS ativas" in page
-    with app.app_context():
-        u = get_db().execute("SELECT role, phone FROM users WHERE email = 'fundao@townly.pt'").fetchone()
-    assert u["role"] == "staff" and u["phone"] == "+351912345678"
-    client.post("/logout")
-
+# ------------------------------------------------------------------ SMS para a Junta
+def test_junta_recebe_sms(client, app, sent_sms):
+    new_manager(client)
     login(client, "ana@teste.pt")
     create_incident(client)
     assert len(sent_sms) == 1
     numbers, text, _folder = sent_sms[0]
     assert numbers == ["+351912345678"] and "em UF Fundao" in text and "TU-" in text and len(text) <= 160
     client.post("/logout")
-
     client.post("/login", data={"email": "fundao@townly.pt", "password": "Temp12345"})
     assert "TU-" in client.get("/admin").get_data(as_text=True)
 
 
-def test_outras_freguesias_e_sms_desligadas_nao_recebem(client, app, sent_sms):
+def test_ja_nao_ha_pagina_de_responsaveis(client):
     login(client, "rui@teste.pt")
+    assert client.get("/admin/freguesias").status_code == 404
+
+
+def test_outras_freguesias_e_sms_desligadas_nao_recebem(client, app, sent_sms):
     new_manager(client, parish=ALPEDRINHA, email="alpedrinha@townly.pt")
-    new_manager(client, email="fundao2@townly.pt", phone="961111222")
+    uid = new_manager(client, email="fundao2@townly.pt", phone="961111222")
     with app.app_context():
-        uid = get_db().execute("SELECT id FROM users WHERE email = 'fundao2@townly.pt'").fetchone()["id"]
-    client.post(f"/admin/freguesias/{uid}/telemovel", data={"phone": "961111222"})   # sem «sms_alerts» → desliga
-    client.post("/logout")
+        db = get_db()
+        with db:
+            db.execute("UPDATE users SET sms_alerts = FALSE WHERE id = ?", (uid,))      # desligou as SMS
     login(client, "ana@teste.pt")
     create_incident(client)
     assert sent_sms == []                                     # Alpedrinha não; o do Fundão desligou
-
-
-def test_erros_ao_criar_responsavel(client):
-    login(client, "rui@teste.pt")
-    resp = new_manager(client, phone="123", parish="000000")
-    page = resp.get_data(as_text=True)
-    assert resp.status_code == 400 and "telemóvel português válido" in page and "Escolha a freguesia" in page
 
 
 # ------------------------------------------------------------------ dados da conta
@@ -100,8 +88,7 @@ def test_email_repetido_e_responsavel_muda_telemovel(client, app):
     new_manager(client)
     client.post("/logout")
     client.post("/login", data={"email": "fundao@townly.pt", "password": "Temp12345"})
-    assert client.post("/conta/dados", data={"name": "Junta do Fundão", "email": "fundao@townly.pt",
-                                             "phone": "+351 935 555 444", "sms_alerts": "1"}).status_code == 302
+    assert client.post("/definicoes/notificacoes", data={"phone": "+351 935 555 444", "sms_alerts": "1"}).status_code == 302
     with app.app_context():
         assert get_db().execute("SELECT phone FROM users WHERE email = 'fundao@townly.pt'").fetchone()["phone"] == "+351935555444"
 
@@ -114,3 +101,32 @@ def test_repor_conta_principal_pela_linha_de_comandos(app):
     assert client.post("/login", data={"email": "admin@townly.pt", "password": "Nova2026ab"}).status_code == 302
     bad = runner.invoke(args=["repor-admin"], input="ana@teste.pt\nX\nNova2026ab\nNova2026ab\n")
     assert bad.exit_code != 0 and "Já existe outra conta" in bad.output
+
+
+def test_apagar_tudo_deixa_so_os_dados_de_referencia(client, app):
+    login(client, "ana@teste.pt")
+    create_incident(client)
+    client.post("/logout")
+    runner = app.test_cli_runner()
+    out = runner.invoke(args=["apagar-tudo"], input="nao\n").output
+    assert "Cancelado" in out
+    res = runner.invoke(args=["apagar-tudo"], input="APAGAR\n"); out = res.output
+    assert res.exception is None, repr(res.exception)
+    assert "Apagado: 4 conta(s) e 1 ocorrência(s)" in out
+    with app.app_context():
+        db = get_db()
+        assert db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM incidents").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM organizations").fetchone()[0] > 20
+    runner.invoke(args=["repor-admin"], input="admin@townly.pt\nTownly Up\nNova2026ab\nNova2026ab\n")
+    runner.invoke(args=["create-admin"], input="x\nx@x.pt\nNova2026ab\nNova2026ab\n")
+    with app.app_context():
+        hp = __import__("security").hash_password
+        # sem a conta da Câmara o concelho fica inativo: a plataforma cria-a de novo
+        sv.create_camara_account(get_db(), {"district": "Castelo Branco", "municipality": "Fundão", "name": "Câmara",
+                                            "email": "cm@fundao.pt", "password": "Nova2026ab"}, hp)
+        sv.create_user(get_db(), "Ana", "ana@teste.pt", hp(PASSWORD))
+    login(client, "ana@teste.pt")
+    create_incident(client)
+    with app.app_context():
+        assert get_db().execute("SELECT ticket FROM incidents").fetchone()["ticket"].endswith("-0001")

@@ -2,30 +2,128 @@
 {% from "_macros.html" import field_error, invalid, reveal %}
 {% block title %}Criar conta{% endblock %}
 {% block auth_form %}
+{% if access == 'entidade' %}
+    <p class="tu-auth-greeting" data-greeting="adesão de entidades">Adesão de entidades</p>
+    <h1 class="tu-auth-title">Pedir acesso para a sua entidade</h1>
+    <p class="tu-auth-lede">As contas das Câmaras, Juntas e serviços não se criam sozinhas: envie o pedido e a Câmara (conta principal)
+      verifica a identidade e cria o acesso, que chega ao email profissional indicado.</p>
+    <form method="post" novalidate class="tu-auth-form-fields tu-register">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="access" value="entidade">
+      <div class="tu-float tu-float-select">
+        <select class="form-select{{ invalid(errors, 'kind') }}" id="kind" name="kind" required>
+          <option value="">Escolher…</option>
+          {% for k, label in entity_kinds.items() %}<option value="{{ k }}" {{ 'selected' if form.get('kind') == k }}>{{ label }}</option>{% endfor %}
+        </select>
+        <label for="kind">Tipo de entidade</label>
+        {{ field_error(errors, 'kind') }}
+      </div>
+      <div class="tu-field-row" id="territory-pick" data-active='{{ territory.active|tojson }}'>
+        <div class="tu-float tu-float-select">
+          <select class="form-select{{ invalid(errors, 'district') }}" id="district" name="district" required>
+            <option value="">Escolher…</option>
+            {% for d in territory.districts %}<option value="{{ d }}" {{ 'selected' if form.get('district') == d }}>{{ d }}</option>{% endfor %}
+          </select>
+          <label for="district">Distrito</label>
+          {{ field_error(errors, 'district') }}
+        </div>
+        <div class="tu-float tu-float-select">
+          <select class="form-select{{ invalid(errors, 'municipality') }}" id="municipality" name="municipality" required
+                  data-selected="{{ form.get('municipality', '') }}" disabled>
+            <option value="">Escolha o distrito</option>
+          </select>
+          <label for="municipality">Concelho</label>
+          {{ field_error(errors, 'municipality') }}
+        </div>
+      </div>
+      <div class="tu-float">
+        <input class="form-control{{ invalid(errors, 'entity_name') }}" id="entity_name" name="entity_name" value="{{ form.get('entity_name', '') }}" placeholder=" " maxlength="120" required>
+        <label for="entity_name">Nome da entidade</label>
+        {{ field_error(errors, 'entity_name') }}
+      </div>
+      <div class="tu-field-row">
+        <div class="tu-float">
+          <input class="form-control{{ invalid(errors, 'contact_name') }}" id="contact_name" name="contact_name" value="{{ form.get('contact_name', '') }}" placeholder=" " maxlength="100" autocomplete="name" required>
+          <label for="contact_name">Responsável</label>
+          {{ field_error(errors, 'contact_name') }}
+        </div>
+        <div class="tu-float">
+          <input class="form-control" type="tel" inputmode="tel" id="phone" name="phone" value="{{ form.get('phone', '') }}" placeholder=" " maxlength="20" autocomplete="tel">
+          <label for="phone">Telefone <span class="tu-optional">· opcional</span></label>
+        </div>
+      </div>
+      <div class="tu-float">
+        <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder=" " maxlength="120" autocomplete="email" required>
+        <label for="email">Email profissional (da entidade)</label>
+        {{ field_error(errors, 'email') }}
+      </div>
+      <div class="tu-float">
+        <textarea class="form-control{{ invalid(errors, 'message') }}" id="message" name="message" placeholder=" " maxlength="600" style="min-height: 84px">{{ form.get('message', '') }}</textarea>
+        <label for="message">Mensagem <span class="tu-optional">· opcional</span></label>
+        {{ field_error(errors, 'message') }}
+      </div>
+      <div class="form-check tu-terms">
+        <input class="form-check-input{{ invalid(errors, 'terms') }}" type="checkbox" id="terms" name="terms" value="1" {{ 'checked' if form.get('terms') }}>
+        <label class="form-check-label" for="terms">Confirmo que represento esta entidade e que os dados são verdadeiros.</label>
+        {{ field_error(errors, 'terms') }}
+      </div>
+      <button class="btn btn-primary tu-auth-submit" type="submit">
+        <span>Enviar pedido de acesso</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
+    <script type="application/json" id="territory-data">{{ territory.districts|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/territory.js') }}?v={{ asset_version }}"></script>
+    <script>
+      TownlyTerritory.bind({
+        district: document.getElementById('district'), municipality: document.getElementById('municipality'),
+        data: JSON.parse(document.getElementById('territory-data').textContent),
+        active: JSON.parse(document.getElementById('territory-pick').dataset.active),
+      });
+    </script>
+{% else %}
     <p class="tu-auth-greeting" data-greeting="junte-se à comunidade">Junte-se à comunidade</p>
     <h1 class="tu-auth-title">Criar conta de munícipe</h1>
     <p class="tu-auth-lede">Comunique problemas no espaço público e receba os alertas da sua freguesia.</p>
     <form method="post" novalidate class="tu-auth-form-fields tu-register">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="access" value="cidadao">
       <div class="tu-float">
         <input class="form-control{{ invalid(errors, 'name') }}" id="name" name="name" value="{{ form.get('name', '') }}" placeholder=" " maxlength="100" autocomplete="name" required>
         <label for="name">Nome</label>
         {{ field_error(errors, 'name') }}
       </div>
-      <div class="tu-field-row">
-        <div class="tu-float">
-          <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder=" " maxlength="120" autocomplete="email" required>
-          <label for="email">Email</label>
-          {{ field_error(errors, 'email') }}
+      <div class="tu-float">
+        <input class="form-control{{ invalid(errors, 'email') }}" type="email" id="email" name="email" value="{{ form.get('email', '') }}" placeholder=" " maxlength="120" autocomplete="email" required>
+        <label for="email">Email</label>
+        {{ field_error(errors, 'email') }}
+      </div>
+      <div class="tu-field-row" id="territory-pick" data-active='{{ territory.active|tojson }}'>
+        <div class="tu-float tu-float-select">
+          <select class="form-select{{ invalid(errors, 'district') }}" id="district" name="district" required>
+            <option value="">Escolher…</option>
+            {% for d in territory.districts %}<option value="{{ d }}" {{ 'selected' if form.get('district') == d }}>{{ d }}</option>{% endfor %}
+          </select>
+          <label for="district">Distrito</label>
+          {{ field_error(errors, 'district') }}
         </div>
         <div class="tu-float tu-float-select">
-          <select class="form-select{{ invalid(errors, 'parish') }}" id="parish" name="parish" title="Recebe os alertas desta freguesia">
-            <option value="">Não indicar</option>
-            {% for code, name in parishes %}<option value="{{ code }}" {{ 'selected' if form.get('parish') == code }}>{{ name }}</option>{% endfor %}
+          <select class="form-select{{ invalid(errors, 'municipality') }}" id="municipality" name="municipality" required
+                  data-selected="{{ form.get('municipality', '') }}" {{ 'disabled' if not form.get('district') }}>
+            <option value="">Escolha o distrito</option>
           </select>
-          <label for="parish">Freguesia <span class="tu-optional">· opcional</span></label>
-          {{ field_error(errors, 'parish') }}
+          <label for="municipality">Concelho</label>
+          {{ field_error(errors, 'municipality') }}
         </div>
+      </div>
+      <p class="tu-hint tu-territory-note" id="territory-note" hidden></p>
+      <div class="tu-float tu-float-select" id="parish-wrap" hidden>
+        <select class="form-select{{ invalid(errors, 'parish') }}" id="parish" name="parish" data-selected="{{ form.get('parish', '') }}"
+                title="O mapa abre já na sua freguesia">
+          <option value="">Escolha o concelho</option>
+        </select>
+        <label for="parish">Freguesia <span class="tu-optional">· opcional</span></label>
+        {{ field_error(errors, 'parish') }}
       </div>
       <div class="tu-field-row">
         <div class="tu-float tu-field-reveal">
@@ -52,4 +150,16 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
     </form>
+    <script type="application/json" id="territory-data">{{ territory.districts|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/territory.js') }}?v={{ asset_version }}"></script>
+    <script>
+      TownlyTerritory.bind({
+        district: document.getElementById('district'), municipality: document.getElementById('municipality'),
+        parish: document.getElementById('parish'), parishWrap: document.getElementById('parish-wrap'),
+        note: document.getElementById('territory-note'),
+        data: JSON.parse(document.getElementById('territory-data').textContent),
+        active: JSON.parse(document.getElementById('territory-pick').dataset.active),
+      });
+    </script>
+{% endif %}
 {% endblock %}

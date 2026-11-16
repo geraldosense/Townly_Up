@@ -55,6 +55,18 @@ CATEGORIES = (
     ("Outro", None),
 )
 
+# Subtipos de cada categoria (como na app de Castelo Branco): melhor encaminhamento e estatísticas.
+SUBCATEGORIES = {
+    "Vias e pavimentos": ("Buraco no pavimento", "Passeio ou calçada danificados", "Sarjeta ou grelha", "Lomba ou piso irregular", "Outro"),
+    "Iluminação pública": ("Candeeiro apagado", "Candeeiro aceso de dia", "Poste danificado", "Cabos soltos", "Outro"),
+    "Espaços verdes": ("Árvore caída ou em risco", "Ramos a obstruir", "Relva e mato por cortar", "Jardim ou canteiro danificado", "Outro"),
+    "Limpeza urbana": ("Contentor cheio", "Lixo fora do contentor", "Ecoponto danificado", "Monstros (móveis, eletrodomésticos)", "Outro"),
+    "Mobiliário urbano": ("Banco danificado", "Parque infantil", "Papeleira", "Abrigo de autocarro", "Outro"),
+    "Sinalização e trânsito": ("Sinal vertical danificado", "Pintura no pavimento apagada", "Semáforo avariado", "Estacionamento abusivo", "Outro"),
+    "Água e saneamento": ("Rotura de água", "Coletor entupido", "Tampa de saneamento", "Fontanário ou bebedouro", "Outro"),
+    "Outro": ("Outro",),
+}
+
 CAMARA = "Câmara Municipal do Fundão"
 CAPTIONS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "freguesias", "legendas.json")
 
@@ -90,15 +102,15 @@ def seed(db):
                    ON CONFLICT (code) DO UPDATE SET landmark = excluded.landmark, image_credit = excluded.image_credit""",
                 (code, name, short_name(name), cap.get("ponto"), cap.get("credito")),
             )
-        db.execute("INSERT INTO organizations (name, kind) VALUES (?, 'camara') ON CONFLICT (name) DO NOTHING", (CAMARA,))
+        db.execute("INSERT INTO organizations (name, kind, municipality) VALUES (?, 'camara', 'Fundão') ON CONFLICT (name) DO NOTHING", (CAMARA,))
         for service in SERVICES:
             db.execute(
-                "INSERT INTO organizations (name, kind, service) VALUES (?, 'servico', ?) ON CONFLICT (name) DO NOTHING",
+                "INSERT INTO organizations (name, kind, service, municipality) VALUES (?, 'servico', ?, 'Fundão') ON CONFLICT (name) DO NOTHING",
                 (service, service),
             )
         for code, name in PARISHES:
             db.execute(
-                "INSERT INTO organizations (name, kind, parish_code) VALUES (?, 'junta', ?) ON CONFLICT (name) DO NOTHING",
+                "INSERT INTO organizations (name, kind, parish_code, municipality) VALUES (?, 'junta', ?, 'Fundão') ON CONFLICT (name) DO NOTHING",
                 (junta_name(name), code),
             )
         for name, service in CATEGORIES:
@@ -106,6 +118,13 @@ def seed(db):
                 "INSERT INTO categories (name, default_service) VALUES (?, ?) ON CONFLICT (name) DO NOTHING",
                 (name, service),
             )
+        for cat, subs in SUBCATEGORIES.items():
+            row = db.execute("SELECT id FROM categories WHERE name = ?", (cat,)).fetchone()
+            if row is None:
+                continue
+            for pos, sub in enumerate(subs):
+                db.execute("INSERT INTO subcategories (category_id, name, position) VALUES (?, ?, ?) "
+                           "ON CONFLICT (category_id, name) DO NOTHING", (row["id"], sub, pos))
 
 
 def sms_parish(code):

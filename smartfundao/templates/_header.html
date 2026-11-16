@@ -1,19 +1,25 @@
 {# Cabeçalho em estilo de aplicação:
-   1.ª linha — logótipo · Comunicar · sino dos alertas · conta
-   2.ª linha — botão «Menu» (abre o painel lateral) + atalhos principais
-   Painel lateral — tudo o resto, organizado por secções. #}
+   Uma só linha — logótipo · sino dos alertas · conta · menu (três barras)
+   Painel lateral (abre à direita no computador) — todas as secções da aplicação. #}
 {% from "_macros.html" import avatar %}
 {% set ep = request.endpoint or '' %}
 {% set is_citizen = g.user and g.user.role == 'citizen' %}
 {% set is_staff = g.user and g.user.role in ('admin', 'staff') %}
 
-<header class="tu-appbar" id="top">
+{% if not hide_appbar %}
+<header class="tu-appbar{{ ' is-sub' if ep != 'index' }}" id="top">
   <div class="tu-appbar-main">
     <div class="container tu-appbar-row">
+      {% if ep != 'index' %}
+        <a class="tu-appbar-back" href="{{ url_for('index') }}" data-back aria-label="Voltar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </a>
+      {% endif %}
       <a class="tu-appbar-brand" href="{{ url_for('index') }}" aria-label="Townly Up — início">
         {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
         <span class="tu-wordmark">Townly <b>Up</b></span>
       </a>
+      {% if ep != 'index' and page_title %}<span class="tu-appbar-title" aria-hidden="true">{{ page_title }}</span>{% endif %}
 
       <div class="tu-appbar-actions">
         {% if is_staff %}
@@ -54,7 +60,7 @@
                 <a href="{{ url_for('account') }}">A minha conta</a>
                 <a href="{{ url_for('notifications_page') }}">Alertas{% if unread_count %} <span class="tu-drawer-count">{{ unread_count }}</span>{% endif %}</a>
                 {% if g.user.role == 'citizen' %}<a href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a>{% endif %}
-                {% if g.user.role == 'admin' %}<a href="{{ url_for('admin_supervision') }}">Supervisão</a><a href="{{ url_for('admin_parishes') }}">Responsáveis por freguesia</a>{% endif %}
+                {% if g.user.role == 'admin' %}<a href="{{ url_for('admin_accounts') }}">Câmaras Municipais{% if pending_requests %} <span class="tu-drawer-count">{{ pending_requests }}</span>{% endif %}</a><a href="{{ url_for('admin_supervision') }}">Estatísticas</a>{% endif %}
               </div>
               <form method="post" action="{{ url_for('logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -70,114 +76,129 @@
             {% endif %}
           </div>
         </div>
+
+        {# Telemóvel: perfil à direita do cabeçalho — abre «A minha conta» (ou Entrar) #}
+        <a class="tu-appbar-icon tu-appbar-profile {{ 'is-active' if ep in ('account', 'account_activity', 'login', 'register') }}"
+           href="{{ url_for('account') if g.user else url_for('login') }}"
+           aria-label="{{ 'A minha conta' if g.user else 'Entrar' }}" title="{{ 'A minha conta' if g.user else 'Entrar' }}">
+          {% if g.user %}{{ avatar(g.user, 34) }}{% else %}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6"/></svg>
+          {% endif %}
+        </a>
+
+        {# Menu (três barras): abre o painel com tudo o resto da aplicação #}
+        <button class="tu-appbar-icon tu-appbar-menu" type="button" aria-controls="tu-drawer" aria-expanded="false" data-drawer-open
+                aria-label="Abrir menu" title="Menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
       </div>
     </div>
   </div>
-
-  <nav class="tu-appbar-sub" aria-label="Atalhos">
-    <div class="container tu-appbar-row">
-      <button class="tu-menu-btn" type="button" aria-controls="tu-drawer" aria-expanded="false" data-drawer-open>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span>
-      </button>
-      <ul class="tu-quick">
-        <li><a class="{{ 'is-active' if ep == 'index' }}" href="{{ url_for('index') }}">Início</a></li>
-        <li><a class="{{ 'is-active' if ep == 'live_map' }}" href="{{ url_for('live_map') }}">Mapa</a></li>
-        {% if is_citizen %}
-          <li><a class="{{ 'is-active' if ep in ('citizen_dashboard', 'incident_detail') }}" href="{{ url_for('citizen_dashboard') }}">As minhas ocorrências</a></li>
-        {% elif is_staff %}
-          <li><a class="{{ 'is-active' if ep.startswith('admin') and ep not in ('admin_accounts', 'admin_supervision', 'admin_parishes') }}" href="{{ url_for('admin_dashboard') }}">Ocorrências</a></li>
-          {% if g.user.role == 'admin' %}<li><a class="{{ 'is-active' if ep == 'admin_supervision' }}" href="{{ url_for('admin_supervision') }}">Supervisão</a></li>{% endif %}
-        {% endif %}
-        <li><a class="{{ 'is-active' if ep in ('parishes_index', 'parish_page') }}" href="{{ url_for('parishes_index') }}">Freguesias</a></li>
-        <li><a class="{{ 'is-active' if ep == 'how_it_works' }}" href="{{ url_for('how_it_works') }}">Como funciona</a></li>
-        <li><a class="{{ 'is-active' if ep == 'rules' }}" href="{{ url_for('rules') }}">Regras</a></li>
-      </ul>
-    </div>
-  </nav>
 </header>
+{% endif %}
 
 {# ---------------------------------------------------------------- Painel lateral (menu) #}
 <div class="tu-drawer-backdrop" data-drawer-close hidden></div>
-<aside class="tu-drawer" id="tu-drawer" aria-label="Menu" aria-hidden="true" tabindex="-1">
-  <div class="tu-drawer-head">
-    <a class="tu-drawer-brand" href="{{ url_for('index') }}">{% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}<span class="tu-wordmark">Townly <b>Up</b></span></a>
-    <button class="tu-drawer-close" type="button" data-drawer-close aria-label="Fechar menu">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-    </button>
-  </div>
+<aside class="tu-drawer tu-sidebar tu-menu" id="tu-drawer" aria-label="Menu" aria-hidden="true" tabindex="-1">
+  {# Menu em secções (título cinzento · ícone · nome · seta), sai do lado do botão e empurra a página para a esquerda. #}
+  {% set chev = '<svg class="tu-mn-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' %}
+  {% macro item(endpoint, label, icon, active, badge=0, href=None, cls='') %}
+    <a href="{{ href or url_for(endpoint) }}" class="tu-mn-item {{ 'is-active' if active }} {{ cls }}" {{ 'aria-current=page' if active }}>
+      <svg class="tu-mn-ico" viewBox="0 0 24 24" aria-hidden="true">{{ icon|safe }}</svg><span>{{ label }}</span>
+      {% if badge %}<em class="tu-sb-badge">{{ badge if badge < 100 else '99+' }}</em>{% endif %}
+      <svg class="tu-mn-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    </a>
+  {% endmacro %}
 
-  <div class="tu-drawer-tabs" role="tablist">
-    <button type="button" role="tab" aria-selected="true" aria-controls="drawer-explorar" data-drawer-tab="explorar">Explorar</button>
-    <button type="button" role="tab" aria-selected="false" aria-controls="drawer-conta" data-drawer-tab="conta">{{ 'A minha conta' if g.user else 'Conta' }}</button>
-  </div>
-
-  {# ------------------------------------------------ Explorar #}
-  <div class="tu-drawer-pane" id="drawer-explorar" role="tabpanel">
-    {% if is_citizen %}
-      <a class="tu-drawer-promo" href="{{ url_for('new_incident') }}">
-        <b>Comunicar ocorrência</b><span>Fotografe o problema e envie em 3 passos</span>
-      </a>
-    {% elif not g.user %}
-      <a class="tu-drawer-promo" href="{{ url_for('register') }}">
-        <b>Junte-se à comunidade</b><span>Crie conta para comunicar e receber alertas</span>
-      </a>
-    {% endif %}
-    <nav class="tu-drawer-list">
-      <a href="{{ url_for('index') }}" class="{{ 'is-active' if ep == 'index' }}"><span>Início</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('live_map') }}" class="{{ 'is-active' if ep == 'live_map' }}"><span>Mapa de ocorrências</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      {% if is_citizen %}
-      <a href="{{ url_for('citizen_dashboard') }}" class="{{ 'is-active' if ep == 'citizen_dashboard' }}"><span>As minhas ocorrências</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      {% endif %}
-      {% if is_staff %}
-      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'is-active' if ep == 'admin_dashboard' }}"><span>{{ 'Painel municipal' if g.user.role == 'admin' else 'Painel da entidade' }}</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      {% endif %}
-      <a href="{{ url_for('parishes_index') }}" class="{{ 'is-active' if ep in ('parishes_index', 'parish_page') }}"><span>As 23 freguesias</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('ranking') }}" class="{{ 'is-active' if ep == 'ranking' }}"><span>Ranking</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('how_it_works') }}" class="{{ 'is-active' if ep == 'how_it_works' }}"><span>Como funciona</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('rules') }}" class="{{ 'is-active' if ep == 'rules' }}"><span>Regras da comunidade</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('privacy') }}" class="{{ 'is-active' if ep == 'privacy' }}"><span>Privacidade e dados</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-    </nav>
-  </div>
-
-  {# ------------------------------------------------ Conta #}
-  <div class="tu-drawer-pane" id="drawer-conta" role="tabpanel" hidden>
+  <div class="tu-mn-scroll">
+    {# ---------- Conta #}
+    <p class="tu-mn-sec">Conta</p>
     {% if g.user %}
-      <a class="tu-drawer-user" href="{{ url_for('account') }}">
-        {{ avatar(g.user, 52) }}
-        <span class="min-w-0"><b>{{ g.user.name }}</b>
-          <small>{{ ROLE_LABELS[g.user.role] }}{% if g.user.org_name %} · {{ g.user.org_name }}{% endif %}</small></span>
+      <a class="tu-mn-item tu-mn-user" href="{{ url_for('account') }}">
+        {{ avatar(g.user, 40) }}
+        <span class="min-w-0"><b>{{ g.user.name }}</b><small>Ver o perfil{% if is_citizen and my_level %} · {{ my_level.points }} pts{% endif %}</small></span>
+        {{ chev|safe }}
       </a>
-      {% if is_citizen and my_level %}
-        <a class="tu-drawer-level" href="{{ url_for('ranking') }}">
-          <span><b>{{ my_level.name }}</b><small>Nível de participação</small></span>
-          <span class="tu-drawer-level-pts">{{ my_level.points }} pts</span>
-        </a>
-      {% endif %}
-      <nav class="tu-drawer-list">
-      <a href="{{ url_for('notifications_page') }}" class="{{ 'is-active' if ep == 'notifications_page' }}"><span>Alertas</span>{% if unread_count %}<span class="tu-drawer-count">{{ unread_count }}</span>{% endif %}<svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('account') }}" class="{{ 'is-active' if ep == 'account' }}"><span>A minha conta</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-        {% if g.user.role == 'admin' %}
-      <a href="{{ url_for('admin_supervision') }}" class="{{ 'is-active' if ep == 'admin_supervision' }}"><span>Supervisão</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('admin_parishes') }}" class="{{ 'is-active' if ep == 'admin_parishes' }}"><span>Responsáveis por freguesia</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-      <a href="{{ url_for('admin_accounts') }}" class="{{ 'is-active' if ep == 'admin_accounts' }}"><span>Contas das entidades</span><svg class="tu-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-        {% endif %}
-        <form method="post" action="{{ url_for('logout') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="tu-drawer-logout"><span>Terminar sessão</span></button>
-        </form>
-      </nav>
     {% else %}
-      <div class="tu-drawer-guest">
-        <p>Entre para comunicar problemas, acompanhar os seus pedidos e receber alertas da sua freguesia.</p>
-        <a class="btn btn-primary w-100 mb-2" href="{{ url_for('login') }}">Entrar</a>
-        <a class="btn btn-outline-primary w-100" href="{{ url_for('register') }}">Criar conta</a>
+      <div class="tu-mn-guest">
+        <a class="tu-mn-btn is-solid" href="{{ url_for('login') }}">Entrar</a>
+        <a class="tu-mn-btn" href="{{ url_for('register') }}">Criar conta</a>
       </div>
     {% endif %}
-  </div>
 
-  <div class="tu-drawer-foot">
-    <p><b>Emergências: 112.</b> Este serviço não é para situações urgentes.</p>
-    <p>Projeto académico · Concelho do Fundão</p>
+    <hr class="tu-mn-rule">
+    {# ---------- Principal #}
+    <p class="tu-mn-sec">Principal</p>
+    <nav class="tu-mn-list" aria-label="Principal">
+      {{ item('index', 'Início', '<path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v10.5h4.5v-6h4v6h4.5V9"/>', ep == 'index') }}
+      {{ item('live_map', 'Mapa interativo', '<path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/>', ep == 'live_map', cls='tu-sb-desktop') }}
+      {% if is_staff %}
+        {{ item('admin_dashboard', 'Todas as ocorrências' if g.user.role == 'admin' else 'Ocorrências da Câmara', '<rect x="4" y="4" width="7" height="8" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="14" width="7" height="6" rx="1.2"/>', ep.startswith('admin') and ep not in ('admin_accounts', 'admin_supervision')) }}
+      {% else %}
+        {{ item('citizen_dashboard', 'Minhas ocorrências', '<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/>', ep in ('citizen_dashboard', 'incident_detail', 'incident_submitted'), cls='tu-sb-desktop') }}
+      {% endif %}
+      {% if g.user %}
+        {{ item('notifications_page', 'Notificações', '<path d="M6 16V11a6 6 0 1 1 12 0v5l1.6 2.2a.5.5 0 0 1-.4.8H4.8a.5.5 0 0 1-.4-.8L6 16z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/>', ep == 'notifications_page', unread_count) }}
+      {% endif %}
+      {{ item('ranking', 'Ranking', '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.6 3.4M17 6h2.5a2.5 2.5 0 0 1-2.6 3.4"/>', ep == 'ranking') }}
+    </nav>
+
+    {% if g.user and g.user.role == 'admin' %}
+    <hr class="tu-mn-rule">
+    <p class="tu-mn-sec">Plataforma</p>
+    <nav class="tu-mn-list" aria-label="Plataforma">
+      {{ item('admin_accounts', 'Câmaras Municipais', '<path d="M3.5 20.5h17M5 20.5v-9M19 20.5v-9M9.5 20.5v-9M14.5 20.5v-9M2.5 10 12 4l9.5 6z"/>', ep == 'admin_accounts', pending_requests) }}
+      {{ item('admin_supervision', 'Estatísticas', '<path d="M4 20h16M6.5 16.5V11M11 16.5V6.5M15.5 16.5v-7M20 16.5V4.5"/>', ep == 'admin_supervision') }}
+    </nav>
+    {% endif %}
+
+    <hr class="tu-mn-rule">
+    {# ---------- Informação e ajuda #}
+    <p class="tu-mn-sec">Informação e ajuda</p>
+    <nav class="tu-mn-list" aria-label="Informação e ajuda">
+      {{ item('how_it_works', 'Como funciona', '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.2-2.4 3.6M12 17h.01"/>', ep == 'how_it_works') }}
+      {{ item('rules', 'Regras', '<path d="M12 3.5 5 6.5v5c0 4.2 3 7.8 7 9 4-1.2 7-4.8 7-9v-5z"/><path d="m9 12 2 2 4-4"/>', ep == 'rules') }}
+      {{ item('help_page', 'Ajuda e suporte', '<path d="M4 13.5v-1.5a8 8 0 0 1 16 0v1.5"/><rect x="3" y="13" width="4" height="6.5" rx="1.6"/><rect x="17" y="13" width="4" height="6.5" rx="1.6"/><path d="M19 19.5c0 1.4-1.6 2-4 2h-2"/>', ep == 'help_page') }}
+    </nav>
+
+    <hr class="tu-mn-rule">
+    {# ---------- Preferências #}
+    <p class="tu-mn-sec">Preferências</p>
+    <div class="tu-mn-list">
+      <label class="tu-mn-item tu-mn-lang">
+        <svg class="tu-mn-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z"/></svg>
+        <span>Idioma</span>
+        <select data-lang-select aria-label="Idioma" translate="no" class="notranslate">
+          <option value="pt">Português</option>
+          <option value="es">Español</option>
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="zh-CN">中文 (普通话)</option>
+        </select>
+        {{ chev|safe }}
+      </label>
+      <label class="tu-mn-item tu-sb-theme tu-mn-theme">
+        <svg class="tu-mn-ico tu-sb-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+        <svg class="tu-mn-ico tu-sb-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+        <span data-theme-name>Modo claro</span>
+        <input type="checkbox" role="switch" data-theme-switch aria-label="Modo escuro">
+        <i class="tu-sb-switch" aria-hidden="true"></i>
+      </label>
+    </div>
+
+    <hr class="tu-mn-rule">
+    <nav class="tu-mn-list" aria-label="Configurações">
+      {{ item('settings', 'Configurações', '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', ep == 'settings') }}
+      {% if g.user %}
+        <form method="post" action="{{ url_for('logout') }}" class="tu-mn-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="tu-mn-item tu-mn-logout">
+            <svg class="tu-mn-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4.5H5.5v15H10M15 16l4-4-4-4M19 12H9"/></svg><span>Terminar sessão</span>
+          </button>
+        </form>
+      {% endif %}
+    </nav>
   </div>
 </aside>
 
@@ -188,6 +209,46 @@
     <span>Comunicar ocorrência</span>
   </a>
 {% endif %}
+
+{# Barra de navegação inferior — só no telemóvel, como numa aplicação.
+   Escondida enquanto se comunica uma ocorrência (o formulário tem os seus próprios botões). #}
+{# Escolher idioma (folha que sobe de baixo) #}
+<div class="tu-lang-sheet notranslate" id="tu-lang-sheet" translate="no" hidden>
+  <div class="tu-lang-backdrop" data-lang-close></div>
+  <div class="tu-lang-panel" role="dialog" aria-modal="true" aria-labelledby="tu-lang-title">
+    <div class="tu-lang-grip" aria-hidden="true"></div>
+    <h2 id="tu-lang-title">Idioma</h2>
+    <div class="tu-lang-list" role="radiogroup" aria-labelledby="tu-lang-title">
+      {% for code, label, sub in [('pt', 'Português', 'Idioma original'), ('es', 'Español', 'Espanhol'), ('en', 'English', 'Inglês'),
+                                 ('fr', 'Français', 'Francês'), ('de', 'Deutsch', 'Alemão'), ('zh-CN', '中文', 'Mandarim')] %}
+        <button type="button" role="radio" data-lang="{{ code }}"><span><b>{{ label }}</b><small>{{ sub }}</small></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button>
+      {% endfor %}
+    </div>
+    <p class="tu-lang-note">Os outros idiomas são traduzidos automaticamente (Google Tradutor).</p>
+    <button type="button" class="tu-lang-close" data-lang-close>Fechar</button>
+  </div>
+</div>
+
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+<nav class="tu-tabbar tu-tabbar-flat" aria-label="Navegação principal">
+  <a href="{{ url_for('index') }}" class="{{ 'is-active' if ep == 'index' }}" {{ 'aria-current=page' if ep == 'index' }}>
+    <svg {{ ico|safe }}><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v10.5h4.5v-6h4v6h4.5V9"/></svg><span>início</span></a>
+  {% set on = ep in ('live_map', 'parishes_index', 'parish_page') %}
+  <a href="{{ url_for('live_map') }}" class="{{ 'is-active' if on }}" {{ 'aria-current=page' if on }}>
+    <svg {{ ico|safe }}><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>mapa</span></a>
+  {% if is_staff %}
+    {% set on = ep.startswith('admin') and ep not in ('admin_accounts', 'admin_supervision') %}
+    <a href="{{ url_for('admin_dashboard') }}" class="{{ 'is-active' if on }}" {{ 'aria-current=page' if on }}>
+      <svg {{ ico|safe }}><rect x="4" y="4" width="7" height="8" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="14" width="7" height="6" rx="1.2"/></svg><span>painel</span></a>
+  {% else %}
+    {% set on = ep in ('new_incident', 'incident_submitted') %}
+    <a href="{{ url_for('new_incident') }}" class="{{ 'is-active' if on }}">
+      <svg {{ ico|safe }}><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg><span>comunicar</span></a>
+  {% endif %}
+  <button type="button" aria-controls="tu-drawer" aria-expanded="false" data-drawer-open aria-label="Abrir menu">
+    <svg {{ ico|safe }}><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>menu</span></button>
+</nav>
 
 <script>
   // Painel da conta: abre por baixo do ícone; fecha ao clicar fora ou com Esc.
@@ -205,23 +266,191 @@
   (function () {
     const drawer = document.getElementById('tu-drawer');
     const backdrop = document.querySelector('.tu-drawer-backdrop');
-    const opener = document.querySelector('[data-drawer-open]');
-    function open() {
+    const openers = document.querySelectorAll('[data-drawer-open]');
+    let opener = openers[0], lockedY = 0;
+    // Com o menu aberto, a página por trás não se mexe (no iPhone, overflow:hidden não chega).
+    function lock() {
+      lockedY = window.scrollY;
+      document.body.style.setProperty('--tu-lock-top', -lockedY + 'px');
+      document.body.classList.add('tu-scroll-locked');
+    }
+    function unlock() {
+      if (!document.body.classList.contains('tu-scroll-locked')) return;
+      document.body.classList.remove('tu-scroll-locked');
+      document.body.style.removeProperty('--tu-lock-top');
+      window.scrollTo(0, lockedY);
+    }
+    function open(e) {
+      opener = (e && e.currentTarget) || opener;
+      lock();
       backdrop.hidden = false; drawer.setAttribute('aria-hidden', 'false');
       requestAnimationFrame(() => { document.body.classList.add('tu-drawer-open'); });
       opener.setAttribute('aria-expanded', 'true'); drawer.focus();
     }
     function close() {
+      unlock();
       document.body.classList.remove('tu-drawer-open'); drawer.setAttribute('aria-hidden', 'true');
       opener.setAttribute('aria-expanded', 'false');
       setTimeout(() => { backdrop.hidden = true; }, 250); opener.focus();
     }
-    opener.addEventListener('click', open);
+    openers.forEach(btn => btn.addEventListener('click', open));
     drawer.querySelectorAll('[data-drawer-tab]').forEach(tab => tab.addEventListener('click', () => {
       drawer.querySelectorAll('[data-drawer-tab]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
       drawer.querySelectorAll('.tu-drawer-pane').forEach(p => { p.hidden = p.id !== 'drawer-' + tab.dataset.drawerTab; });
     }));
+    drawer.querySelectorAll('a[href*="#"]').forEach(a => a.addEventListener('click', () => {
+      unlock(); document.body.classList.remove('tu-drawer-open'); drawer.setAttribute('aria-hidden', 'true'); setTimeout(() => { backdrop.hidden = true; }, 250);
+    }));
     document.querySelectorAll('[data-drawer-close]').forEach(el => el.addEventListener('click', close));
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('tu-drawer-open')) close(); });
   })();
+
+  // Título no cabeçalho (telemóvel), como nas apps: aparece quando o título grande da página sai do ecrã.
+  document.addEventListener('DOMContentLoaded', function () {
+    const bar = document.querySelector('.tu-appbar.is-sub');
+    const big = document.querySelector('main h1');
+    if (!bar) return;
+    if (!big || !('IntersectionObserver' in window)) { bar.classList.add('show-title'); return; }
+    new IntersectionObserver(([e]) => bar.classList.toggle('show-title', !e.isIntersecting && e.boundingClientRect.top < 80),
+      { rootMargin: '-64px 0px 0px 0px' }).observe(big);
+  });
+
+  // Botão flutuante «Comunicar»: só aparece quando não há outro «Comunicar» visível no ecrã
+  // (topo da página inicial, o meu painel, a faixa do rodapé...) — nunca dois iguais ao mesmo tempo.
+  document.addEventListener('DOMContentLoaded', function () {
+    const fab = document.querySelector('.tu-report-fab');
+    if (!fab) return;
+    const others = [...document.querySelectorAll('main a[href="' + fab.getAttribute('href') + '"], footer a[href="' + fab.getAttribute('href') + '"]')];
+    if (!others.length || !('IntersectionObserver' in window)) return;
+    const visible = new Set();
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target));
+      fab.classList.toggle('is-hidden', visible.size > 0);
+    });
+    others.forEach(el => io.observe(el));
+  });
+
+  // Painel «Configurações» do menu: abre ao tocar no perfil; separadores; email pede palavra-passe se mudar.
+  (function () {
+    const panel = document.getElementById('tu-sb-panel');
+    const opener = document.querySelector('[data-panel-open]');
+    if (!panel || !opener) return;
+    const set = open => { panel.hidden = !open; opener.setAttribute('aria-expanded', String(open));
+      requestAnimationFrame(() => panel.classList.toggle('is-open', open)); if (open) panel.querySelector('[data-panel-close]').focus(); };
+    opener.addEventListener('click', () => set(true));
+    panel.querySelector('[data-panel-close]').addEventListener('click', () => { set(false); opener.focus(); });
+    panel.querySelectorAll('[data-sbp-tab]').forEach(tab => tab.addEventListener('click', () => {
+      panel.querySelectorAll('[data-sbp-tab]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      panel.querySelectorAll('[data-sbp-pane]').forEach(p => { p.hidden = p.dataset.sbpPane !== tab.dataset.sbpTab; });
+      panel.querySelector('.tu-sbp-save').hidden = tab.dataset.sbpTab !== 'perfil';
+    }));
+    const email = panel.querySelector('[data-sbp-email]'), pass = panel.querySelector('.tu-sbp-pass');
+    email.addEventListener('input', () => { pass.hidden = email.value.trim().toLowerCase() === email.dataset.original; });
+    // o interruptor «Modo escuro» do painel muda logo o tema (não precisa de guardar)
+    const dark = panel.querySelector('[data-theme-switch2]');
+    dark.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+    dark.addEventListener('change', () => {
+      try { localStorage.setItem('tu-theme', dark.checked ? 'dark' : 'light'); } catch (e) {}
+      window.tuApplyPrefs && window.tuApplyPrefs();
+      const main = document.querySelector('[data-theme-switch]'); if (main) main.dispatchEvent(new Event('sync'));
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { e.stopPropagation(); set(false); opener.focus(); } }, true);
+  })();
+
+  // Menu › interruptor Modo claro / Modo escuro (guardado neste aparelho, como em Definições › Aparência).
+  (function () {
+    const sw = document.querySelector('[data-theme-switch]');
+    if (!sw) return;
+    const name = document.querySelector('[data-theme-name]');
+    const sync = () => { const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+      sw.checked = dark; name.textContent = dark ? 'Modo escuro' : 'Modo claro'; };
+    sync();
+    sw.addEventListener('sync', sync);
+    sw.addEventListener('change', () => {
+      try { localStorage.setItem('tu-theme', sw.checked ? 'dark' : 'light'); } catch (e) {}
+      window.tuApplyPrefs && window.tuApplyPrefs(); sync();
+    });
+  })();
+
+  // Botão «voltar» do telemóvel: volta à página anterior do site (ou ao início, se vier de fora).
+  (function () {
+    const back = document.querySelector('[data-back]');
+    if (!back) return;
+    back.addEventListener('click', e => {
+      let sameSite = false;
+      try { sameSite = document.referrer && new URL(document.referrer).origin === location.origin; } catch (_) {}
+      if (sameSite && history.length > 1) { e.preventDefault(); history.back(); }
+    });
+  })();
+</script>
+<script>
+  // Idioma (menu): a app está escrita em português; os outros idiomas usam a tradução automática da Google
+  // (só é ativada quando a pessoa escolhe outro idioma). A escolha fica guardada neste aparelho.
+  (function () {
+    const select = document.querySelector('[data-lang-select]');
+    const cookie = () => (document.cookie.match(/(?:^|;\s*)googtrans=([^;]*)/) || [])[1] || '';
+    const current = () => { const m = decodeURIComponent(cookie()).match(/^\/pt\/(.+)$/); return m ? m[1] : 'pt'; };
+    function setCookie(value) {
+      const host = location.hostname, exp = value ? '' : '; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = 'googtrans=' + (value || '') + '; path=/' + exp;
+      if (host.includes('.') && !/^\d+\.\d+\.\d+\.\d+$/.test(host)) document.cookie = 'googtrans=' + (value || '') + '; path=/; domain=.' + host + exp;
+    }
+    const lang = current();
+    function choose(code) {
+      if (code === current()) return;
+      setCookie(code === 'pt' ? '' : '/pt/' + code);
+      try { localStorage.setItem('tu-lang', code); } catch (e) {}
+      location.reload();
+    }
+    if (select) {
+      select.value = lang;
+      select.addEventListener('change', () => choose(select.value));
+    }
+    // Folha «Idioma» (aberta pelo atalho no início): lista com o idioma atual marcado.
+    const sheet = document.getElementById('tu-lang-sheet');
+    if (sheet) {
+      sheet.querySelectorAll('[data-lang]').forEach(b => {
+        b.setAttribute('aria-checked', String(b.dataset.lang === lang));
+        b.addEventListener('click', () => choose(b.dataset.lang));
+      });
+      const close = () => { sheet.hidden = true; document.body.classList.remove('tu-sheet-open'); };
+      document.addEventListener('click', e => {        // os atalhos estão na página, abaixo deste script
+        if (!e.target.closest('[data-lang-open]')) return;
+        sheet.hidden = false; document.body.classList.add('tu-sheet-open');
+        (sheet.querySelector('[aria-checked="true"]') || sheet.querySelector('[data-lang]')).focus();
+      });
+      sheet.querySelectorAll('[data-lang-close]').forEach(b => b.addEventListener('click', close));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) close(); });
+    }
+    if (lang === 'pt') return;
+    document.documentElement.lang = lang;
+    const box = document.createElement('div'); box.id = 'tu-gt'; box.hidden = true; document.body.append(box);
+    window.tuGoogleTranslate = function () {
+      new google.translate.TranslateElement({ pageLanguage: 'pt', autoDisplay: false }, 'tu-gt');
+    };
+    const s = document.createElement('script');
+    s.src = 'https://translate.google.com/translate_a/element.js?cb=tuGoogleTranslate';
+    s.onerror = () => window.Townly && Townly.toast && Townly.toast('Tradução indisponível sem internet.');
+    document.head.append(s);
+  })();
+
+  // Voltar atrás (iPhone guarda a página em memória): garantir que o menu está fechado e a barra de baixo visível.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    document.body.classList.remove('tu-drawer-open', 'tu-scroll-locked');
+    document.body.style.removeProperty('--tu-lock-top');
+    const d = document.getElementById('tu-drawer'), b = document.querySelector('.tu-drawer-backdrop');
+    if (d) d.setAttribute('aria-hidden', 'true');
+    if (b) b.hidden = true;
+  });
+</script>
+<script>
+  // Escrever sem surpresas: email e palavras-passe sem maiúscula automática nem correção ortográfica;
+  // Enter num campo de texto de um passo do formulário não envia a página por engano.
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('input[type="email"], input[type="password"], input[name="email"]').forEach(i => {
+      i.setAttribute('autocapitalize', 'none'); i.setAttribute('autocorrect', 'off'); i.setAttribute('spellcheck', 'false');
+    });
+    document.querySelectorAll('input[type="tel"]').forEach(i => i.setAttribute('autocomplete', i.getAttribute('autocomplete') || 'tel'));
+  });
 </script>

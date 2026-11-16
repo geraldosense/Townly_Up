@@ -37,18 +37,36 @@ def categories():
     return jsonify([{"id": r["id"], "name": r["name"], **cm.category_style(r["name"])} for r in rows])
 
 
+MAP_LIMIT = 3000
+
+
 @bp.get("/map")
 def public_map():
     db = get_db()
-    items = cm.public_map(db)
+    # ?bbox=lng_min,lat_min,lng_max,lat_max — só a zona visível (o concelho). No máximo MAP_LIMIT, as mais recentes.
+    bbox = None
+    try:
+        parts = [float(x) for x in request.args.get("bbox", "").split(",")]
+        if len(parts) == 4 and parts[0] < parts[2] and parts[1] < parts[3]:
+            bbox = parts
+    except ValueError:
+        pass
+    if request.args.get("meus") and g.user and g.user["role"] == "citizen":
+        # «As minhas»: todas as ocorrências da pessoa (também as já fechadas), só com os dados públicos.
+        rows = db.execute(sv.INCIDENT_SELECT + " WHERE i.deleted_at IS NULL AND i.author_id = ? ORDER BY i.created_at DESC LIMIT 500",
+                          (g.user["id"],)).fetchall()
+        items = [cm.public_incident(r) for r in rows]
+    else:
+        items = cm.public_map(db, bbox=bbox, limit=MAP_LIMIT)
     confirmed, own = {}, set()
     if g.user:
         confirmed = cm.user_confirmations(db, g.user["id"])
-        own = {r[0] for r in db.execute("SELECT id FROM incidents WHERE author_id = ?", (g.user["id"],))}
+        own = {r[0] for r in db.execute("SELECT id FROM incidents WHERE author_id = ? AND deleted_at IS NULL", (g.user["id"],))}
     for item in items:
         item["confirmed"] = sorted(confirmed.get(item["id"], ()))
         item["mine"] = item["id"] in own
-    return jsonify({"incidents": items, "statuses": list(sv.ALL_STATUSES)})
+    total_mine = len(own) if g.user and g.user["role"] == "citizen" else None
+    return jsonify({"incidents": items, "statuses": list(sv.ALL_STATUSES), "mine_total": total_mine})
 
 
 @bp.get("/incidents/nearby")
@@ -114,3 +132,26 @@ def parishes():
     return jsonify([{"code": r["code"], "name": r["name"], "short_name": r["short_name"],
                      "active": r["active"], "resolved": r["resolved"], "landmark": r["landmark"],
                      "image": current_app.parish_image(r["code"])} for r in rows])
+
+
+@bp.get("/territorio")
+def territory_geometry():
+    """Contorno do concelho e limites das freguesias (CAOP/DGT), para qualquer um dos 308 concelhos.
+    ?concelho=Nome  ·  ?leve=1 devolve só a lista de freguesias (para os formulários)."""
+    import territory
+    name = request.args.get("concelho", "").strip()
+    if name not in territory.MUNICIPALITY_DISTRICT:
+        return error("Concelho desconhecido.", 404)
+    try:
+        data = territory.geometry(name, current_app.config.get("GEO_CACHE_DIR") or current_app.instance_path)
+    except territory.GeometryUnavailable as exc:
+        current_app.logger.warning("Limites de %s indisponíveis: %s", name, exc)
+        return error("Não foi possível obter o mapa deste concelho agora. Tente mais tarde.", 503)
+    if request.args.get("leve"):
+        body = {"name": name, "parishes": [{"code": f["properties"]["dicofre"], "name": f["properties"]["freguesia"]}
+                                           for f in data["parishes"]["features"]]}
+    else:
+        body = {**data, "active": territory.is_active(name)}       # muda quando a plataforma cria a conta da Câmara
+    resp = jsonify(body)
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Ajuda e perguntas{% endblock %}
+{% block content %}
+<div class="tu-help">
+  <div class="tu-page-head">
+    <div>
+      <div class="tu-eyebrow">Ajuda</div>
+      <h1>Perguntas frequentes</h1>
+    </div>
+  </div>
+  <p class="tu-lede-sm">Respostas rápidas sobre como comunicar, acompanhar e receber alertas. Numa emergência ligue <b>112</b>.</p>
+
+  {% set groups = [
+    ('Comunicar um problema', [
+      ('Que problemas posso comunicar?', 'Problemas no espaço público do seu concelho (para já, o Townly Up está ativo no concelho do Fundão): buracos e passeios danificados, iluminação avariada, lixo e contentores, árvores e jardins, sinalização, água e saneamento, mobiliário urbano. Não use a plataforma para emergências nem para assuntos privados.'),
+      ('Como comunico?', 'Carregue em «Comunicar» (no telemóvel, o botão redondo ao centro da barra de baixo). São 3 passos: escolher o tipo de problema, marcar o local no mapa (ou usar o GPS) e juntar até 3 fotografias com uma descrição curta.'),
+      ('Preciso de ter conta?', 'Para ver o mapa e as ocorrências não. Para comunicar, confirmar «Eu também vi» e receber alertas, sim — é gratuita e demora menos de um minuto.'),
+      ('O sistema diz que o problema já foi comunicado. E agora?', 'Quando há uma ocorrência parecida perto, a app mostra-a. Se for o mesmo problema, carregue em «Eu também vi»: isso aumenta a prioridade e recebe as atualizações. Se for outro, escolha «É outro problema» e continue.'),
+      ('Que fotografias posso enviar?', 'Fotografias do problema, sem pessoas identificáveis nem matrículas. As imagens são reduzidas e os dados de localização do ficheiro são removidos. Conteúdo impróprio ou sem relação é recusado: à 1.ª vez recebe um aviso formal, à 2.ª a conta é banida.'),
+      ('O meu concelho não aparece como disponível. Porquê?', 'O Townly Up está preparado para os 308 concelhos de Portugal, mas cada Câmara tem de aderir. Pode criar conta e ver o mapa; quando a Câmara do seu concelho aderir, passa a poder comunicar. Mude o concelho em Definições › O meu concelho.')]),
+    ('Depois de comunicar', [
+      ('O que é o número de referência (TU-…)?', 'É o número único da sua ocorrência, por exemplo TU-2026-0042. Aparece no fim do envio e chega-lhe por email. Use-o para acompanhar ou falar com a entidade responsável.'),
+      ('Quem trata do meu pedido?', 'É encaminhado automaticamente para o serviço técnico da categoria (por exemplo, Iluminação Pública) e a Junta de Freguesia do local também o vê. A Câmara acompanha tudo.'),
+      ('Quanto tempo demora?', 'Depende do problema e da entidade. Pode ver o estado a qualquer momento em «As minhas ocorrências»: Registada → Em análise → Em tratamento → Resolvida. Cada mudança chega-lhe como alerta.'),
+      ('Posso apagar uma ocorrência?', 'Sim, enquanto a entidade ainda não a começou a tratar (estado «Registada» ou «Em análise»): abra-a e use «Apagar esta ocorrência».')]),
+    ('Alertas e conta', [
+      ('Como funcionam os alertas?', 'O sino no topo mostra quantos alertas novos tem; ao abri-los ficam como vistos. Escolha em Definições › Notificações se quer alertas de todo o concelho ou só das freguesias que acompanha (siga uma freguesia na página dela).'),
+      ('Para que servem os pontos e níveis?', 'Reconhecem quem ajuda a cidade: comunicar, confirmar e ver resolvido dá pontos. O seu nível aparece no menu.'),
+      ('Como mudo a palavra-passe ou a fotografia?', 'Em «A minha conta», no ícone da sua pessoa no topo.'),
+      ('Como apago a minha conta?', 'Em Definições › Privacidade da conta. Ao apagar a conta, os seus dados pessoais são eliminados; as ocorrências ficam no histórico do concelho sem o seu nome.'),
+      ('Posso instalar a app no telemóvel?', 'Sim. No iPhone, abra o site no Safari e toque em Partilhar › «Adicionar ao ecrã principal». No Android, no menu do Chrome, escolha «Instalar aplicação». No computador também encontra estas instruções no fim de qualquer página. Em breve na App Store e no Google Play.')])
+  ] %}
+
+  {% for title, items in groups %}
+    <section class="tu-faq">
+      <h2>{{ title }}</h2>
+      {% for q, a in items %}
+        <details class="tu-faq-item">
+          <summary><span>{{ q }}</span><svg class="tu-faq-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></summary>
+          <p>{{ a }}</p>
+        </details>
+      {% endfor %}
+    </section>
+  {% endfor %}
+
+  <div class="tu-help-more">
+    <div><b>Não encontrou a resposta?</b><span>Veja o guia ilustrado ou as regras da comunidade.</span></div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-primary" href="{{ url_for('how_it_works') }}">Como funciona</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('rules') }}">Regras</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
