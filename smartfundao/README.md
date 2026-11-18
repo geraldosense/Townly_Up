@@ -1,24 +1,232 @@
-# Townly Up
+<p align="center">
+  <img src="static/img/logo.svg" alt="Townly Up" width="132">
+</p>
 
-![Townly Up](static/img/logo.svg)
+<h1 align="center">Townly Up</h1>
 
-Protótipo de aplicação web para os munícipes do Fundão comunicarem problemas no espaço
-público e para uma central municipal **simulada** os acompanhar até à resolução.
+<p align="center">
+  <b>Não basta ver. É preciso comunicar.</b><br>
+  Plataforma web para comunicar e acompanhar problemas no espaço público, do telemóvel até à resolução.
+</p>
 
-> PAP · 12.º ano · Técnico de Desenvolvimento de Software. Demonstração académica — não é
-> um serviço oficial da Câmara Municipal do Fundão. Usa apenas dados fictícios.
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-0b2a5b">
+  <img alt="Flask" src="https://img.shields.io/badge/Flask-3-0b2a5b">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-0b2a5b">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-146%20a%20passar-0e9a3e">
+  <img alt="PWA" src="https://img.shields.io/badge/PWA-instal%C3%A1vel-0e9a3e">
+</p>
+
+> **Prova de Aptidão Profissional (PAP)** · 12.º ano · Curso Profissional de Técnico de Desenvolvimento de Software
+> Tema: *Desenvolvimento de um sistema digital de identificação de problemas urbanos.*
+> Projeto académico, pensado a partir do concelho do Fundão. Não é um serviço oficial de nenhuma Câmara Municipal.
+
+---
+
+## Índice
+
+1. [Sobre o projeto](#sobre-o-projeto)
+2. [O protótipo em imagens](#o-protótipo-em-imagens)
+3. [Tipos de conta](#tipos-de-conta)
+4. [Funcionalidades](#funcionalidades)
+5. [Ciclo de vida de uma ocorrência](#ciclo-de-vida-de-uma-ocorrência)
+6. [Tecnologias](#tecnologias)
+7. [Arquitetura e estrutura](#arquitetura-e-estrutura)
+8. [Instalação e execução](#instalação-e-execução)
+9. [Primeiro arranque e contas](#primeiro-arranque-e-contas)
+10. [Segurança e privacidade](#segurança-e-privacidade)
+11. [Sistema inteligente](#sistema-inteligente)
+12. [Dados geográficos](#dados-geográficos)
+13. [API JSON](#api-json)
+14. [Testes](#testes)
+15. [Pôr online](#pôr-online)
+16. [Variáveis de ambiente](#variáveis-de-ambiente)
+17. [Créditos e licenças](#créditos-e-licenças)
+
+---
+
+## Sobre o projeto
+
+Um buraco na estrada, um candeeiro apagado, um contentor a transbordar: toda a gente vê, pouca gente comunica,
+e quem comunica raramente sabe o que aconteceu depois. O **Townly Up** resolve isso.
+
+- **O munícipe** fotografa o problema, confirma o local no mapa e recebe um número de referência (`TU-2026-0042`).
+- **O pedido segue sozinho** para quem o pode resolver: o serviço técnico da Câmara ou a Junta de Freguesia.
+- **Cada mudança de estado** fica registada com data, autor e observação, e o munícipe é avisado.
+- **O mapa público** mostra, com cores, o que foi comunicado, o que está em execução e o que já ficou resolvido.
+
+A aplicação foi desenhada **primeiro para o telemóvel** (navegação inferior, menu lateral, mapa em ecrã inteiro) e
+instala-se no ecrã inicial como uma app (PWA). Funciona em todo o território continental: cada concelho fica
+ativo quando a respetiva Câmara Municipal entra na plataforma. O Fundão é o concelho de referência,
+com as 23 freguesias e as suas Juntas.
+
+---
+
+## O protótipo em imagens
+
+Capturas reais da aplicação num telemóvel (390 × 844). As ocorrências mostradas são exemplos.
+
+### Comunicar um problema
+
+<p align="center">
+  <img src="docs/imagens/prototipo-municipe.jpg" alt="Início, comunicar, fotografia e número de referência" width="100%">
+</p>
+
+### Acompanhar e participar
+
+<p align="center">
+  <img src="docs/imagens/prototipo-acompanhar.jpg" alt="Mapa, estado da ocorrência, menu e perfil" width="100%">
+</p>
+
+### Área da Câmara e da plataforma
+
+<p align="center">
+  <img src="docs/imagens/prototipo-camara.jpg" alt="Câmaras Municipais, todas as ocorrências e estatísticas" width="100%">
+</p>
+
+---
+
+## Tipos de conta
+
+| Conta | Quem é | O que pode fazer |
+|---|---|---|
+| **Munícipe** (`citizen`) | Qualquer pessoa, regista-se sozinha | Comunicar ocorrências, acompanhar as suas, confirmar «Eu também vi», receber alertas, ganhar pontos |
+| **Câmara / entidade** (`staff`) | Câmara Municipal de um concelho, Junta de Freguesia ou serviço técnico | Ver e tratar as ocorrências **da sua área**, mudar estados, escrever observações, anexar a fotografia da resolução |
+| **Conta principal da plataforma** (`admin`) | Equipa Townly Up | Criar as contas das Câmaras (Distrito → Concelho), aprovar pedidos de acesso, supervisionar todas as ocorrências, ver estatísticas, gerir a segurança da comunidade |
+
+- O registo público cria **sempre** uma conta de munícipe. Nenhuma conta de Câmara ou de administração se cria pelo site público.
+- Uma Câmara pode pedir acesso em **Entrar → Câmara → Pedir acesso**; o pedido aparece à conta principal com um botão «Criar conta» que preenche o formulário.
+- **Uma Câmara por concelho.** Criar a conta da Câmara ativa logo o concelho; desativá-la volta a pôr o concelho como «ainda não disponível».
+- A Câmara de um concelho só vê as ocorrências desse concelho (por exemplo, a Câmara da Covilhã não vê as do Fundão).
+
+---
+
+## Funcionalidades
+
+### Para os munícipes
+
+| Funcionalidade | Descrição |
+|---|---|
+| **Comunicar em 3 passos** | Categoria e caso concreto → fotografias (até 3) e descrição → local por GPS, com marcador arrastável |
+| **Número de referência** | `TU-AAAA-NNNN`, mostrado no ecrã e enviado por email com o resumo e a ligação para acompanhar |
+| **Validação do local** | A ocorrência tem de ficar dentro do concelho da pessoa (limites oficiais) |
+| **Aviso de repetidos** | Antes de enviar, mostra problemas parecidos já comunicados ali perto |
+| **Mapa vivo** | Todas as ocorrências do concelho por cor de estado, camada de freguesias, satélite ou ruas, localização atual e lista «Todas as ocorrências» |
+| **«Eu também vi» / «Já foi resolvido?»** | Cada pessoa confirma uma vez; o pedido ganha força sem ficar duplicado |
+| **Alertas** | Mudanças de estado das suas ocorrências e novos problemas na zona que acompanha |
+| **Pontos, níveis e ranking** | Olho novo → Olho atento → Vigilante do bairro → Guardião da cidade → Embaixador Townly |
+| **Perfil** | Fotografia (qualquer formato de imagem, incluindo HEIC), nome, email, palavra-passe, atividade e terminar sessão num só sítio |
+| **Definições** | O meu concelho (Distrito → Concelho), notificações, tema claro/escuro, idioma, apagar a conta |
+| **Apagar uma ocorrência** | Enquanto estiver «Registada» ou «Em análise»; o histórico fica guardado |
+| **Como funciona** | Guia passo a passo com imagens reais da aplicação |
+
+Pontos: comunicar **+10** · «Eu também vi» **+2** · «Já foi resolvido?» **+1** · a sua ocorrência foi confirmada **+1** · a sua ocorrência foi resolvida **+15**.
+
+### Para as Câmaras e entidades
+
+| Funcionalidade | Descrição |
+|---|---|
+| **Ocorrências da Câmara** | Separadores por estado («Por resolver», «Registada», …), pesquisa por número ou título, filtros por categoria, freguesia e ordem |
+| **Tratar um pedido** | Mudar o estado com observação, definir prioridade, reencaminhar para outra entidade, marcar como duplicada (com o ticket original) |
+| **Fotografia de resolução** | Mostra ao munícipe o trabalho concluído |
+| **Encaminhamento automático** | Serviço da categoria → Junta da freguesia (calculada pelas coordenadas) → Câmara |
+| **Avisos por SMS** | As Juntas podem receber por SMS cada nova ocorrência que lhes é atribuída |
+
+### Para a conta principal da plataforma
+
+| Área | Descrição |
+|---|---|
+| **Câmaras Municipais** | Lista das Câmaras na plataforma, «Adicionar Câmara» (Distrito → Concelho, responsável, email, palavra-passe), ativar e desativar contas |
+| **Pedidos de acesso** | Pedidos enviados pelas Câmaras, com contador no menu e na página inicial |
+| **Todas as ocorrências** | Supervisão de todos os concelhos ativos |
+| **Estatísticas** | Em curso, resolvidas, tempo médio até à 1.ª resposta e até resolver, satisfação, desempenho por entidade, tipos de problema, freguesias, pedidos atrasados e atividade recente |
+| **Segurança da comunidade** | Avisos formais, contas banidas (com «Levantar») e fotografias recusadas |
+
+---
+
+## Ciclo de vida de uma ocorrência
+
+```mermaid
+flowchart LR
+    R[Registada] --> A[Em análise] --> T[Em tratamento] --> S[Resolvida]
+    R --> X[Rejeitada<br/>com motivo]
+    A --> X
+    R --> D[Duplicada<br/>com ticket de referência]
+    A --> D
+```
+
+- O histórico de estados é **imutável**: triggers na base de dados impedem alterar ou apagar registos antigos.
+- As ocorrências fechadas passam para o **arquivo**, nunca são apagadas.
+- No mapa: vermelho = recebida, amarelo = em execução, verde = concluída.
+
+---
 
 ## Tecnologias
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | Python 3.11+ · Flask |
-| Base de dados | **PostgreSQL** (psycopg 3) · SQLite como alternativa sem instalação · migrações versionadas |
-| Imagens | Pillow (validação do conteúdo e remoção de metadados EXIF/GPS) |
-| Frontend | HTML · Jinja2 · Bootstrap 5 · Leaflet + OpenStreetMap · Source Serif 4 / Source Sans 3 |
-| Testes | pytest |
+| Backend | Python 3.11+ · Flask 3 (app factory, blueprints) · Jinja2 |
+| Base de dados | PostgreSQL (psycopg 3, pool de ligações) · SQLite como alternativa sem instalação · 16 migrações versionadas |
+| Imagens | Pillow (validação pelo conteúdo, rotação EXIF, redução, remoção de metadados GPS) · pillow-heif opcional |
+| Frontend | HTML · CSS próprio · Bootstrap 5 · Leaflet 1.9 com mapas Esri · Source Sans 3 / Source Serif 4 |
+| Mobile | PWA (manifest + service worker, página offline), HTTPS local para GPS no telemóvel |
+| Inteligência | Claude API (visão) para moderação de fotografias · dHash para comparar fotografias |
+| Comunicações | Brevo (email e SMS) · SMTP · pasta `outbox` sem configuração |
+| Servidor | gunicorn · Render · Neon (PostgreSQL gerido) |
+| Testes | pytest · os mesmos testes em SQLite e PostgreSQL |
 
-## Instalar e executar (macOS, no terminal do Cursor)
+---
+
+## Arquitetura e estrutura
+
+```
+smartfundao/
+├── app.py              rotas, erros, comandos CLI (create_app)
+├── api.py              API JSON v1
+├── services.py         regras de negócio: validação, tickets, estados, encaminhamento, Câmaras
+├── security.py         hash de palavras-passe, sessão, perfis, CSRF
+├── community.py        confirmações, pontos, níveis, ranking, alertas
+├── supervision.py      estatísticas da plataforma
+├── similarity.py       deteção de ocorrências repetidas
+├── moderation.py       moderação de fotografias (Claude API)
+├── profanity.py        filtro de linguagem imprópria
+├── territory.py        distritos, concelhos e concelhos ativos
+├── geo.py              em que freguesia fica um ponto
+├── mailer.py · sms.py  email e SMS
+├── db.py               ligação PostgreSQL/SQLite, transações, migrações
+├── reference.py        dados de referência: freguesias, entidades, categorias
+├── migrations/         postgres/ e sqlite/ (0001 → 0016)
+├── templates/          páginas Jinja2 (citizen/, admin/, pages/, emails/, errors/)
+├── static/             css/, js/ (live.js, map.js, new_incident.js), img/, data/ (GeoJSON)
+├── tests/              146 testes automáticos
+├── docs/imagens/       imagens deste README
+└── *.command           atalhos para o macOS (duplo clique)
+```
+
+**Princípios seguidos**
+
+- Toda a regra de negócio vive em `services.py`; as rotas só validam o pedido e mostram a resposta.
+- Restrições também na base de dados (`CHECK`, chaves estrangeiras, índices únicos, triggers), não só no código.
+- O mesmo código corre em SQLite e PostgreSQL.
+- Fotografias fora de `static/`: só quem tem permissão as vê.
+
+---
+
+## Instalação e execução
+
+### No Mac (mais simples)
+
+| Atalho | O que faz |
+|---|---|
+| `iniciar.command` | Instala na 1.ª vez, aplica as migrações e abre `http://localhost:8000` |
+| `telemovel.command` | Arranca em HTTPS (porta 8443) para testar no telemóvel com GPS e instalar a app |
+| `repor_conta_principal.command` | Repõe a conta principal da plataforma |
+| `apagar_contas_camara.command` | Apaga as contas das Câmaras (para as criar de novo) |
+| `apagar_tudo.command` | Recomeça a base de dados do zero |
+
+> No macOS a porta 5000 está ocupada pelo AirPlay Receiver, por isso usamos a 8000.
+
+### À mão
 
 ```bash
 cd ~/PAP_2026/smartfundao
@@ -26,233 +234,173 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 
-flask --app app create-admin   # cria a conta da Câmara (pede nome, email e palavra-passe)
-flask --app app run --debug --port 8000   # abrir http://127.0.0.1:8000
+flask --app app init-db                      # cria as tabelas e os dados de referência
+flask --app app create-admin                 # cria a conta principal (pede nome, email e palavra-passe)
+flask --app app run --debug --port 8000      # abrir http://127.0.0.1:8000
 ```
-
-Ou, mais simples: **duplo clique em `iniciar.command`** (instala na 1.ª vez e abre o navegador).
 
 ### PostgreSQL
 
-1. Instalar a [Postgres.app](https://postgresapp.com) (arrastar para Aplicações, abrir, carregar em **Initialize**).
-2. Duplo clique em `iniciar.command`: cria a base `townlyup`, aplica as migrações e os dados de referência (freguesias, entidades, categorias).
+1. Instalar a [Postgres.app](https://postgresapp.com) e carregar em **Initialize**.
+2. Correr `iniciar.command`: cria a base `townlyup` e aplica as migrações.
+3. Para escolher à mão: `export DATABASE_URL=postgresql://$USER@localhost:5432/townlyup`.
 
-Sem PostgreSQL a aplicação usa SQLite (`instance/townlyup.db`) — o código é o mesmo.
-Para escolher à mão: `export DATABASE_URL=postgresql://$USER@localhost:5432/townlyup`.
+Sem PostgreSQL a aplicação usa SQLite (`instance/townlyup.db`), com o mesmo código.
 
-> No macOS a porta 5000 está ocupada pelo AirPlay Receiver — por isso usamos a 8000.
+### Outros comandos
 
-**Sem dados fictícios**: a base começa vazia (só as 23 freguesias, as entidades e as categorias).
-Os munícipes registam-se no site; a 1.ª conta da Câmara cria-se com `create-admin` (ou, online, com
-`ADMIN_EMAIL`/`ADMIN_PASSWORD`) e é ela que cria, no site, as contas das Juntas e dos serviços.
-
-Outros comandos:
-
-```bash
-flask --app app init-db        # só cria as tabelas e categorias
-flask --app app create-admin   # cria um administrador (nunca pelo registo público)
-python -m pytest -v            # corre os testes automáticos
-```
-
-Para recomeçar do zero: apagar `instance/townlyup.db` (ou `dropdb townlyup`) e o conteúdo de `uploads/`.
-
-Em produção, definir a variável `SECRET_KEY` com um valor aleatório
-(`python -c "import secrets; print(secrets.token_hex(32))"`) e `SESSION_COOKIE_SECURE=1` com HTTPS.
-
-## Estrutura
-
-```
-app.py            rotas, erros, comandos (create_app)
-services.py       regras de negócio: validação, tickets, estados, histórico
-security.py       passwords (hash), sessão, perfis, CSRF
-db.py             ligação PostgreSQL/SQLite, transações, migrações
-reference.py      dados de referência: 23 freguesias (CAOP), Câmara, Juntas, serviços, categorias
-geo.py            em que freguesia fica um ponto (limites oficiais CAOP)
-migrations/       postgres/ e sqlite/ — tabelas, CHECK, chaves estrangeiras, índices, triggers
-templates/        páginas Jinja2 (citizen/, admin/, errors/)
-static/           css/style.css · js/map.js · js/new_incident.js · img/logo.svg
-uploads/          fotografias (fora de static/, servidas só a quem tem permissão)
-tests/            test_flow · test_community · test_entities (+ adaptador PostgreSQL)
-static/img/freguesias/   imagens de fundo de cada freguesia (ver abaixo)
-```
-
-## Requisitos implementados
-
-| Req. | Onde |
+| Comando | Descrição |
 |---|---|
-| RF01 Conta, login, logout | `/register`, `/login`, `/logout` |
-| RF02 Dois perfis / rotas restritas | `security.role_required` |
-| RF03 Título, descrição, categoria | `services.create_incident` |
-| RF04 Até 3 imagens válidas | `services.process_image` |
-| RF05 Ponto no mapa (+ coordenadas manuais) | `static/js/map.js` |
-| RF06 Ticket `TU-AAAA-NNNN` (prefixo do nome Townly Up) | `services.create_incident` |
-| RF07 Lista e detalhe dos próprios tickets | `/citizen`, `/incidents/<id>` |
-| RF08 Painel com pesquisa e filtros | `/admin` |
-| RF09 Estado com data, autor e observação | `services.change_status` |
-| RF10 Histórico imutável | `status_history` + triggers em `migrations/` |
-| RF11 Arquivar sem apagar | vista «Histórico»/«Arquivo» + trigger |
-| RF12 (extra) Contagens por estado e categoria | `/admin` |
-| Extra | Notificações na app, mapa de ocorrências no painel, fotografia de resolução, prioridade e serviço responsável |
+| `flask --app app freguesias` | Descarrega os limites oficiais das freguesias (CAOP) |
+| `flask --app app repor-admin` | Repõe a palavra-passe da conta principal |
+| `flask --app app apagar-contas-camara` | Apaga as contas das Câmaras |
+| `flask --app app contas-teste [--remover]` | Cria ou desativa contas só para testes (`@townlyup.test`) |
+| `flask --app app apagar-tudo` | Apaga todos os dados |
 
-## Fluxo de estados
+---
 
-```
-Registada → Em análise → Em tratamento → Resolvida
-     └──────────┴──→ Rejeitada (com motivo) | Duplicada (com ticket de referência)
-```
+## Primeiro arranque e contas
 
-## Segurança (RNF02–RNF05)
+A base de dados começa **vazia**: só freguesias, entidades e categorias. Todo o conteúdo vem dos utilizadores.
 
-- Passwords com hash (Werkzeug), mensagem de login neutra.
-- Token CSRF em todos os formulários POST.
-- O registo público cria sempre «munícipe»; administradores só por comando.
-- Cada munícipe só vê os seus tickets e fotografias (403 para os de outros).
-- Uploads: tamanho máximo, tipo verificado pelo conteúdo, nome aleatório, EXIF removido.
-- Queries SQL sempre com parâmetros `?`; páginas de erro sem stack traces.
+1. **Conta principal**: `flask --app app create-admin` no Mac, ou `ADMIN_EMAIL` + `ADMIN_PASSWORD` online.
+2. **Câmaras**: a conta principal abre *Menu → Câmaras Municipais → Adicionar Câmara* e escolhe Distrito → Concelho.
+   O concelho fica ativo nesse momento.
+3. **Juntas e serviços do Fundão**: *Câmaras Municipais → Mais opções*.
+4. **Munícipes**: registam-se sozinhos, escolhendo o seu concelho.
 
-## Testes de aceitação
+Cada pessoa muda a palavra-passe no **Perfil**.
 
-`python -m pytest -v` cobre TA01–TA08, segurança, comunidade, entidades e restrições da base de dados
-(102 testes). Com `TEST_DATABASE_URL=postgresql://…` os mesmos testes correm em PostgreSQL.
-TA08 (smartphone) deve também ser confirmado manualmente no telemóvel ou nas
-ferramentas de programador do navegador.
+---
 
-## Funcionalidades estilo Waze
+## Segurança e privacidade
 
-| Funcionalidade | Onde |
-|---|---|
-| **Mapa vivo** público (só dados seguros: categoria, estado, nº de confirmações) | `/mapa`, `static/js/live.js` |
-| **«Eu também vi»** e **«Já foi resolvido?»** — cada munícipe confirma uma vez | `community.confirm`, tabela `confirmations` |
-| **Comunicar em 3 passos** (categoria → foto → local por GPS) | `templates/citizen/new_incident.html`, `static/js/new_incident.js` |
-| **Aviso de duplicados** a menos de 50 m (RF14) | `community.nearby` (fórmula de Haversine) |
-| **Pontos, níveis e ranking** por munícipe e por freguesia | `community.py`, tabela `points_log`, `/ranking` |
-| **PWA** — instalar no ecrã do telemóvel, página offline | `static/manifest.webmanifest`, `static/sw.js` |
+- Palavras-passe com hash (Werkzeug); mensagem de login neutra.
+- Token CSRF em todos os formulários e pedidos `POST` da API.
+- Perfis e permissões verificados em cada rota (`role_required`) e por concelho e entidade.
+- Cada munícipe só vê os seus pedidos privados e as suas fotografias (403 para os de outros).
+- Uploads: tamanho máximo, tipo verificado pelo **conteúdo**, nome aleatório, metadados EXIF e GPS removidos,
+  proteção contra «bombas» de descompressão.
+- SQL sempre parametrizado; páginas de erro sem detalhes internos.
+- Mapa público só com dados seguros: categoria, estado e número de confirmações, sem nomes nem fotografias.
+- **Comunidade**: palavrões, insultos e imagens impróprias são bloqueados. 1.º ato = aviso formal; 2.º ato = conta banida.
+- Cada pessoa pode apagar a sua conta nas Definições.
 
-Pontos: comunicar +10 · «Eu também vi» +2 · «Já foi resolvido?» +1 · a sua ocorrência foi confirmada +1 · a sua ocorrência foi resolvida +15.
-Níveis: Olho novo (0) → Olho atento (30) → Vigilante do bairro (100) → Guardião da cidade (250) → Embaixador Townly (500).
-
-## Mapa das freguesias (limites oficiais CAOP / DGT)
-
-- Página inicial: «O território do Fundão» — as 23 freguesias desenhadas em SVG (funciona sem internet). Ao passar o cursor a freguesia fica realçada e mostra o nome e as ocorrências ativas; a cor fica mais verde onde há mais ocorrências; um clique abre o mapa vivo filtrado.
-- Mapa vivo: camada «Freguesias» (ligar/desligar), nome ao passar o cursor, clique filtra a lista; `/mapa?freguesia=<DICOFRE>`.
-- Os limites ficam em `static/data/freguesias_fundao.geojson`. Para os obter: `flask --app app freguesias` (o `iniciar.command` faz isto sozinho). Fonte: Carta Administrativa Oficial de Portugal (CAOP 2022), Direção-Geral do Território.
-- Sem esse ficheiro, a secção simplesmente não aparece — o resto da aplicação funciona.
-
-## API JSON v1 (base para as futuras apps Android/iOS)
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/v1/categories` | Categorias com ícone e cor |
-| GET | `/api/v1/map` | Ocorrências do mapa público |
-| GET | `/api/v1/incidents/nearby?lat=&lng=&category_id=` | Ocorrências ativas a menos de 50 m |
-| POST | `/api/v1/incidents/<id>/confirm` | `{"kind": "seen" \| "fixed"}` (sessão + cabeçalho `X-CSRF-Token`) |
-| GET | `/api/v1/me` | Pontos e nível do utilizador |
-
-Próximo passo para as apps das lojas: autenticação por token (ex.: JWT) e upload de fotografias pela API.
-
-## Identidade visual
-
-- Logótipo: `static/img/logo.svg` (olho + marcador + anel) — também usado como favicon.
-- Cores: azul-marinho `#0b2a5b` (marca, botões principais) e verde `#0e9a3e` (ações, sucesso).
-- Todas as cores estão definidas no topo de `static/css/style.css` (variáveis `--tu-*`).
-
-## Quem recebe os problemas
-
-| Perfil | O que faz |
-|---|---|
-| Munícipe (`citizen`) | comunica, confirma «Eu também vi», segue freguesias e recebe **alertas** dessas zonas |
-| Junta de Freguesia (`staff`) | trata as ocorrências da sua freguesia |
-| Serviço técnico (`staff`) | trata as ocorrências da sua área (água, iluminação, obras…) em todo o concelho |
-| Câmara Municipal (`admin`) | vê tudo, define prioridades e reencaminha entre entidades |
-
-Encaminhamento automático: serviço da categoria → Junta da freguesia (calculada pelas coordenadas) → Câmara.
-Todos recebem alertas: o autor e quem confirmou (mudança de estado), quem segue a freguesia (nova
-ocorrência) e a entidade responsável (nova atribuição). Página `/alertas`.
-
-## Imagens de fundo das freguesias
-
-Colocar em `static/img/freguesias/<código>.jpg` (código DICOFRE, lista em `LEIA-ME.txt`; 1600×900, até 500 KB).
-Legendas e créditos em `legendas.json`, por exemplo:
-
-```json
-{ "050406": { "ponto": "Chafariz de D. João V", "credito": "Foto: autor, licença" } }
-```
-
-A imagem aparece no fundo do topo da página inicial ao passar o rato pela freguesia e na página `/freguesias/<código>`.
-Usar só fotografias próprias ou com licença que o permita.
-
-## Pôr online (Render + Neon, gratuito)
-
-1. **Base de dados — [Neon](https://neon.com)**: criar conta e projeto (região Frankfurt), copiar o
-   *connection string* (`postgresql://…?sslmode=require`).
-2. **Código — GitHub**: enviar esta pasta para `github.com/geraldosense/Townly_Up` (ver comandos abaixo).
-3. **Servidor — [Render](https://render.com)**: *New → Blueprint* → escolher o repositório. O `render.yaml`
-   cria o serviço; colar o endereço do Neon em `DATABASE_URL`. O `start.sh` cria as tabelas, a conta da Câmara e arranca o `gunicorn`.
-
-```bash
-git init
-git add .
-git commit -m "Townly Up"
-git branch -M main
-git remote add origin https://github.com/geraldosense/Townly_Up.git
-git push -u origin main
-```
-
-**Todo o conteúdo vem dos utilizadores** (não há dados fictícios). No Render,
-definir `ADMIN_EMAIL` e `ADMIN_PASSWORD` — o `start.sh` cria essa 1.ª conta da Câmara. Depois, no site,
-*menu → Contas das entidades* cria as contas dos técnicos das Juntas e dos serviços; os munícipes
-registam-se sozinhos. Cada pessoa muda a palavra-passe em *A minha conta*.
-
-Notas: no plano gratuito o site adormece após 15 min sem visitas (a 1.ª visita demora ~1 min).
-As fotografias ficam guardadas na base de dados (o disco do Render apaga-se ao reiniciar).
+---
 
 ## Sistema inteligente
 
-**Repetidos** (`similarity.py`): antes de enviar, a nova ocorrência é comparada com as ativas a menos de
-150 m, juntando distância, categoria, palavras da descrição (sem acentos nem palavras vazias) e a
-«impressão digital» das fotografias (dHash de 64 bits, guardado em `incident_images.phash`).
-Acima de 50 % de semelhança o munícipe vê as ocorrências parecidas e escolhe «Eu também vi» ou
-«É outro problema» (fica registado em `incidents.similar_to`). Os técnicos veem a % de semelhança no painel.
+**Deteção de repetidos** (`similarity.py`): a nova ocorrência é comparada com as ativas a menos de 150 m,
+juntando distância, categoria, palavras da descrição (sem acentos nem palavras vazias) e a «impressão digital»
+das fotografias (dHash de 64 bits). Acima de 50 % de semelhança, o munícipe vê as ocorrências parecidas e
+escolhe «Eu também vi» ou «É outro problema». Os técnicos veem a percentagem no painel.
 
-**Moderação das fotografias** (`moderation.py`): cada fotografia é analisada pela Claude API (visão,
-modelo `claude-haiku-5-5`) e é recusada automaticamente se tiver conteúdo sexual, violência ou ódio,
-ou se não mostrar um problema no espaço público (selfie, meme, captura de ecrã...). Cada recusa fica em
-`moderation_events`; à 3.ª recusa por conteúdo impróprio em 30 dias a conta é suspensa.
-Configurar `ANTHROPIC_API_KEY` (consola da Anthropic → API keys). Sem a chave a moderação fica desligada.
+**Moderação das fotografias** (`moderation.py`): cada fotografia é analisada pela Claude API (visão) e é recusada se
+tiver conteúdo sexual, violência ou ódio, ou se não mostrar um problema no espaço público (selfie, meme,
+captura de ecrã). Sem `ANTHROPIC_API_KEY`, a moderação fica desligada e o resto funciona.
 
-## Email com o número de referência
+**Filtro de linguagem** (`profanity.py`): títulos, descrições e observações com linguagem imprópria são bloqueados.
 
-Logo após comunicar, o munícipe recebe um email com o número (TU-AAAA-NNNN), o resumo, a entidade
-responsável, a ligação para acompanhar e os próximos passos (`mailer.py`, `templates/emails/`).
-O envio corre em segundo plano: a página não espera e, se falhar, a ocorrência fica registada na mesma.
+---
 
-| Onde | Configuração |
+## Dados geográficos
+
+| Dado | Fonte | Ficheiro |
+|---|---|---|
+| Freguesias e concelho do Fundão | CAOP, Direção-Geral do Território | `static/data/freguesias_fundao.geojson`, `concelho_fundao.geojson` |
+| Distritos e concelhos de Portugal (308) | GEO API PT / CAOP | `static/data/portugal.json` e API |
+| Contorno de Portugal continental e distritos | Natural Earth (domínio público) | `portugal_continental.geojson`, `distritos_continente.geojson` |
+| Mapas de fundo | Esri World Street Map / World Imagery | carregados pelo Leaflet |
+
+O mapa abre já enquadrado no concelho da pessoa e não deixa sair dos seus limites. Quem não tem sessão iniciada
+vê Portugal continental com os distritos.
+
+---
+
+## API JSON
+
+Base para as futuras apps Android e iOS. Prefixo: `/api/v1`.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/categories` | Categorias com ícone e cor |
+| GET | `/map` | Ocorrências do mapa público |
+| GET | `/incidents/nearby?lat=&lng=&category_id=` | Ocorrências ativas a menos de 50 m |
+| POST | `/incidents/similar` | Ocorrências parecidas antes de enviar |
+| POST | `/incidents/<id>/confirm` | `{"kind": "seen" \| "fixed"}` (sessão + cabeçalho `X-CSRF-Token`) |
+| GET | `/me` | Pontos e nível do utilizador |
+| GET | `/parishes` | Freguesias do Fundão |
+| GET | `/territorio?concelho=` | Se o concelho já está ativo na plataforma |
+
+---
+
+## Testes
+
+```bash
+python -m pytest -q                                                   # SQLite
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres python -m pytest -q   # PostgreSQL
+```
+
+**146 testes automáticos**, todos a passar nas duas bases de dados. Cobrem os testes de aceitação do caderno
+de encargos, contas e permissões, Câmaras por concelho, encaminhamento, estados e histórico, comunidade e pontos,
+repetidos, moderação, perfil, definições, território, SMS e restrições da base de dados.
+
+A experiência no telemóvel deve também ser confirmada à mão (`telemovel.command`) ou nas ferramentas de programador do navegador.
+
+---
+
+## Pôr online
+
+**Render + Neon (gratuito)**
+
+1. **[Neon](https://neon.com)**: criar o projeto (região Frankfurt) e copiar o *connection string*.
+2. **GitHub**: enviar o código para `github.com/geraldosense/Townly_Up`.
+3. **[Render](https://render.com)**: *New → Blueprint* → escolher o repositório. O `render.yaml` cria o serviço;
+   colar o endereço do Neon em `DATABASE_URL` e definir `ADMIN_EMAIL` e `ADMIN_PASSWORD`. O `start.sh` aplica as
+   migrações, cria a conta principal e arranca o `gunicorn`.
+
+No plano gratuito o site adormece após 15 minutos sem visitas. As fotografias ficam na base de dados,
+porque o disco do Render apaga-se ao reiniciar.
+
+**Escala** (PostgreSQL 16, 10 000 munícipes, 2 000 ocorrências): criar uma ocorrência ≈ 9 ms · mapa ≈ 130 ms ·
+painel ≈ 100 ms · alertas ≈ 4 ms.
+
+---
+
+## Variáveis de ambiente
+
+Nenhuma é obrigatória para correr no Mac. As chaves ficam **sempre** fora do código (ficheiro `.env` ou painel do Render).
+
+| Variável | Para quê |
 |---|---|
-| Online (Render) | `BREVO_API_KEY` + `MAIL_FROM` (remetente verificado na Brevo, gratuito até 300 emails/dia). O Render gratuito bloqueia SMTP, por isso usa-se a API HTTPS. |
-| No Mac (opcional) | `MAIL_SERVER=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME`, `MAIL_PASSWORD` (palavra-passe de aplicação do Gmail), `MAIL_FROM` |
-| Sem configuração | os emails ficam em `instance/outbox/` (abrir no navegador para ver) |
+| `SECRET_KEY` | Assinar as sessões (obrigatória em produção) |
+| `DATABASE_URL`, `DB_POOL_SIZE` | Base de dados PostgreSQL |
+| `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD` | Conta principal criada no arranque |
+| `SESSION_COOKIE_SECURE`, `TRUST_PROXY`, `PUBLIC_URL` | HTTPS e endereço público |
+| `ANTHROPIC_API_KEY`, `MODERATION_MODEL` | Moderação das fotografias |
+| `BREVO_API_KEY`, `SMS_SENDER` | Email e SMS pela Brevo |
+| `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_FROM_NAME` | Email por SMTP |
+| `CONTACT_EMAIL` | Contacto mostrado nas páginas de ajuda |
+| `TEST_ACCOUNTS` | Permitir as contas de teste |
+| `PLAY_STORE_URL`, `APP_STORE_URL` | Ligações para as futuras apps |
+| `TEMPLATES_AUTO_RELOAD` | Recarregar as páginas durante o desenvolvimento |
 
-## Conta, apagar e alertas
+---
 
-- **Fotografia de perfil** (`/conta`): JPEG/PNG/WebP até 5 MB, cortada em quadrado 320×320, sem metadados,
-  guardada na base de dados (`users.avatar`). Aparece no menu, na conta e no ranking.
-- **Apagar**: o autor pode apagar a ocorrência enquanto está «Registada» ou «Em análise». Deixa de aparecer em
-  todo o lado, as fotografias são eliminadas e os pontos retirados; o registo e o histórico ficam
-  (`incidents.deleted_at`), como exige o caderno de encargos (RF10/RF11).
-- **Alertas da comunidade**: cada novo problema gera um alerta para todos os munícipes («na sua freguesia» para
-  quem lá vive ou a segue). Em «Alertas» cada pessoa pode escolher só as freguesias que acompanha (`users.alert_scope`).
+## Identidade visual
 
-## Contas de teste e supervisão
+- **Logótipo**: `static/img/logo.svg` (olho + marcador + anel), também usado como ícone da app.
+- **Cores**: azul-marinho `#0b2a5b` (marca) e verde `#0e9a3e` (ações e sucesso), definidas no topo de `static/css/style.css` (`--tu-*`).
+- **Tipografia**: Source Sans 3 (texto) e Source Serif 4 (títulos).
+- Tema claro por omissão, com tema escuro nas Definições.
 
-`flask --app app contas-teste` cria 30 contas **só para testes** (domínio reservado `@townlyup.test`, palavra-passe
-`TownlyTeste2026` — mude com `--password`): `supervisao@townlyup.test` (Câmara, vê o painel **Supervisão**),
-uma por Junta (`junta.alpedrinha@townlyup.test`, …) e uma por serviço (`obras-municipais@townlyup.test`, …).
-`flask --app app contas-teste --remover` desativa-as todas. Não as crie no site público.
+---
 
-**Supervisão** (`/admin/supervisao`, só a Câmara): pedidos em curso e resolvidos, tempo médio até à 1.ª resposta e até
-resolver, pedidos sem resposta há 7+ dias, desempenho por entidade, freguesias, tipos de problema, atividade recente e moderação.
+## Créditos e licenças
 
-**Escala** (teste com PostgreSQL 16, 10 000 munícipes e 2 000 ocorrências): criar uma ocorrência ≈ 9 ms; mapa público
-≈ 130 ms; painel ≈ 100 ms; alertas de uma pessoa ≈ 4 ms; base de dados ≈ 14 MB sem fotografias. Os alertas da comunidade
-são calculados na hora (feed), não se guarda uma cópia por pessoa. O limite prático no plano gratuito do Neon (1 GB) são as
-fotografias (≈ 150–300 KB cada): para milhares de fotografias, passar para um armazenamento de ficheiros (ex.: Cloudflare R2).
+- Limites administrativos: **CAOP**, Direção-Geral do Território · **GEO API PT**.
+- Contornos de Portugal e distritos: **Natural Earth** (domínio público).
+- Mapas de fundo: **Esri**, Maxar, Earthstar Geographics e comunidade de utilizadores SIG.
+- Bibliotecas: Flask, Pillow, psycopg, Leaflet, Bootstrap e Bootstrap Icons, segundo as respetivas licenças.
+
+<p align="center"><sub>Townly Up · PAP 2026/27 · Geraldo Sense</sub></p>
