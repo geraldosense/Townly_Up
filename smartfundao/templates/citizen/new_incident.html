@@ -16,26 +16,33 @@
 </div>
 {% else %}
 {# Passo em que há erros (para o assistente abrir logo aí depois de uma validação falhada) #}
-{% set error_step = 1 if errors.get('category_id') or errors.get('subcategory_id') else (2 if errors.get('photos') or errors.get('description') or errors.get('title') or errors.get('privacy') else (3 if errors.get('location') else 1)) %}
+{% set error_step = 1 if errors.get('category_id') or errors.get('subcategory_id') else (2 if errors else 1) %}
 <div class="row justify-content-center">
   <div class="col-lg-8 col-xl-7">
-    <div class="tu-page-head mb-3">
+    <div class="tu-page-head tu-ni-page-head mb-3">
       <div><div class="tu-eyebrow">Comunicar em 3 passos</div><h1>O que viu?</h1></div>
       <a class="btn btn-link text-decoration-none" href="{{ url_for('live_map') }}">Cancelar</a>
     </div>
 
     <form id="incident-form" method="post" enctype="multipart/form-data" novalidate data-error-step="{{ error_step }}" data-radius="{{ radius }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="tu-steps" aria-hidden="true"><span class="done"></span><span></span><span></span></div>
+      <ol class="tu-stepper" aria-label="Passos">
+        <li class="is-current"><span class="tu-stepper-dot"><b>1</b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4L18 8.5"/></svg></span><span class="tu-stepper-label">Tipo de problema</span></li>
+        <li class=""><span class="tu-stepper-dot"><b>2</b><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4L18 8.5"/></svg></span><span class="tu-stepper-label">Fotografia e local</span></li>
+      </ol>
 
-      <!-- PASSO 1: categoria -->
-      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="1">
-        <h2 class="tu-section"><span class="tu-num">1</span> Que tipo de problema é?</h2>
-        <div class="tu-cat-grid">
+      <!-- PASSO 1: categoria e subtipo (lista simples, como nas Definições) -->
+      <section class="tu-step-pane tu-ni-pane" data-step="1">
+        <header class="tu-ni-head"><h2>Que tipo de problema é?</h2></header>
+        <div class="tu-ni-grid" role="radiogroup" aria-label="Tipo de problema">
           {% for c in categories %}{% set st = category_style(c.name) %}
-            <div class="tu-cat-tile">
+            <div class="tu-ni-tile">
               <input type="radio" name="category_id" id="cat-{{ c.id }}" value="{{ c.id }}" {{ 'checked' if form.get('category_id') == c.id|string }}>
-              <label for="cat-{{ c.id }}" style="--c: {{ st.color }}"><i class="bi bi-{{ st.icon }}"></i>{{ c.name }}</label>
+              <label for="cat-{{ c.id }}" style="--c: {{ st.color }}">
+                <span class="tu-ni-ico" aria-hidden="true"><i class="bi bi-{{ st.icon }}"></i></span>
+                <b>{{ c.name }}</b>
+                <svg class="tu-ni-tick" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4L18 8.5"/></svg>
+              </label>
             </div>
           {% endfor %}
         </div>
@@ -43,13 +50,14 @@
 
         {# Subtipo (aparece depois de escolher a categoria) #}
         <div class="tu-subcats" id="subcats" {{ '' if form.get('category_id') else 'hidden' }}>
-          <p class="tu-subcats-title">E mais concretamente?</p>
+          <div class="tu-ni-subhead"><p>E mais concretamente?</p></div>
           {% for c in categories %}
-            <div class="tu-subcat-group" data-cat="{{ c.id }}" {{ '' if form.get('category_id') == c.id|string else 'hidden' }}>
+            <div class="tu-subcat-group tu-ni-list" data-cat="{{ c.id }}" {{ '' if form.get('category_id') == c.id|string else 'hidden' }}>
               {% for sc in subcategories.get(c.id, []) %}
-                <label class="tu-subcat">
+                <label class="tu-subcat tu-ni-row">
                   <input type="radio" name="subcategory_id" value="{{ sc.id }}" {{ 'checked' if form.get('subcategory_id') == sc.id|string }} {{ '' if form.get('category_id') == c.id|string else 'disabled' }}>
                   <span>{{ sc.name }}</span>
+                  <svg class="tu-ni-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
                 </label>
               {% endfor %}
             </div>
@@ -58,52 +66,61 @@
         </div>
       </section>
 
-      <!-- PASSO 2: fotografia e descrição -->
-      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="2">
-        <h2 class="tu-section"><span class="tu-num">2</span> Mostre-nos o problema</h2>
-        <!-- Botões de fotografia (aparecem com JavaScript). Sem JavaScript fica o campo de ficheiro normal. -->
-        <div class="tu-photo-actions" id="photo-actions" hidden>
-          <button type="button" class="tu-photo-btn tu-photo-btn-main" id="open-camera">
-            <i class="bi bi-camera-fill"></i><span>Tirar fotografia</span><small>Abrir a câmara</small>
-          </button>
-          <label class="tu-photo-btn" for="photos-gallery">
-            <i class="bi bi-images"></i><span>Escolher da galeria</span><small>Até 3 fotografias</small>
-          </label>
-        </div>
+      <!-- PASSO 2: fotografia (o local fica registado com ela), uma frase e enviar -->
+      <section class="tu-step-pane tu-ni-pane" data-step="2">
+        <header class="tu-ni-head"><h2>Mostre-nos o problema</h2></header>
+
         <!-- Auxiliares (sem name: não são enviados; o JavaScript junta tudo em #photos) -->
         <input type="file" id="photos-gallery" accept="image/*" multiple class="visually-hidden" tabindex="-1">
         <input type="file" id="photos-capture" accept="image/*" capture="environment" class="visually-hidden" tabindex="-1">
-
         <input class="form-control{{ invalid(errors, 'photos') }}" type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/webp" multiple required>
-        <div class="form-text" id="photos-help">1 a {{ max_images }} fotografias. São endireitadas e reduzidas automaticamente para um envio rápido.{% if form %} Volte a tirar ou escolher as fotografias.{% endif %}</div>
+        {% if form %}<p class="tu-ni-hint" id="photos-help">Volte a tirar ou escolher as fotografias.</p>{% endif %}
         {{ field_error(errors, 'photos') }}
-        <div id="photo-preview" class="tu-photo-grid my-3"></div>
-
-        <label class="form-label" for="description">Descreva em poucas palavras</label>
-        <textarea class="form-control{{ invalid(errors, 'description') }}" id="description" name="description" rows="3" maxlength="2000" placeholder="Ex.: Buraco grande junto à passadeira, perigoso para motas." required>{{ form.get('description', '') }}</textarea>
-        {{ field_error(errors, 'description') }}
-
-        <details class="mt-2" {{ 'open' if form.get('title') or errors.get('title') }}>
-          <summary class="small text-muted">Adicionar um título (opcional)</summary>
-          <input class="form-control mt-2{{ invalid(errors, 'title') }}" id="title" name="title" maxlength="120" placeholder="Se ficar vazio, usamos o nome da categoria" value="{{ form.get('title', '') }}">
-          {{ field_error(errors, 'title') }}
-        </details>
-
-        <div class="form-check mt-3">
-          <input class="form-check-input{{ invalid(errors, 'privacy') }}" type="checkbox" id="privacy" name="privacy" value="1" {{ 'checked' if form.get('privacy') }}>
-          <label class="form-check-label small" for="privacy">As fotografias mostram apenas o problema, sem pessoas identificáveis, menores ou matrículas. A 1.ª fotografia pode aparecer em «Últimas ocorrências» na página inicial.</label>
-          {{ field_error(errors, 'privacy') }}
+        <!-- A fotografia, com a descrição por baixo (discreta, como uma legenda) e o local na mesma ficha. -->
+        <div class="tu-ni-post" id="photo-post">
+          <div id="photo-preview" class="tu-photo-grid"></div>
+          <textarea class="tu-ni-caption{{ invalid(errors, 'description') }}" id="description" name="description" rows="1" maxlength="2000" aria-label="Descrição do problema" placeholder="Escreva uma frase sobre o problema…" required>{{ form.get('description', '') }}</textarea>
+        <!-- Local: registado com a fotografia (GPS da fotografia ou localização do telemóvel). Numa linha; o mapa só
+             abre em «Alterar» ou quando não foi possível obter o local. -->
+        <div class="tu-ni-loc{{ ' is-invalid' if errors.get('location') }}" id="loc-card" data-state="{{ 'set' if form.get('latitude') else 'wait' }}">
+          <div class="tu-ni-loc-row" id="address-box">
+            <span class="tu-ni-loc-pin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+            <span class="tu-ni-loc-txt"><b id="address-text">{{ form.get('address') or 'Local registado' }}</b><small id="loc-source"></small></span>
+            <button type="button" class="tu-ni-loc-edit" id="loc-edit" aria-expanded="false">Alterar</button>
+          </div>
+          <div class="tu-ni-loc-map">
+            <div id="map" class="tu-ni-map" data-map="picker" data-lat="{{ center[0] }}" data-lng="{{ center[1] }}"></div>
+            <div class="tu-ni-loc-help"><span id="loc-note">Toque no mapa no sítio exato do problema.</span>
+              <button type="button" class="tu-ni-link" id="loc-now">Usar a minha localização</button></div>
+            </div>
         </div>
-      </section>
-
-      <!-- PASSO 3: localização + aviso de duplicados -->
-      <section class="tu-step-pane tu-card tu-card-body mb-3" data-step="3">
-        <h2 class="tu-section"><span class="tu-num">3</span> Onde está?</h2>
-        <p class="small text-muted mb-2">Usamos a sua localização; ajuste o marcador se for preciso.</p>
-        <div id="map" class="tu-map{{ ' border-danger' if errors.get('location') }}" data-map="picker"
-             data-lat="{{ center[0] }}" data-lng="{{ center[1] }}"></div>
-        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="use-location"><i class="bi bi-crosshair"></i> Usar a minha localização</button>
-        <div class="row g-2 mt-1">
+        </div>
+        <!-- Fotografia: visor com a câmara e a galeria, dicas curtas e o aviso de que o local fica registado.
+             Com fotografias, fica uma linha discreta por baixo da ficha («+ Adicionar fotografia · Galeria»). -->
+        <div class="tu-ni-shot" id="photo-actions" hidden>
+          <div class="tu-ni-cap">
+            <div class="tu-ni-cap-view" aria-hidden="true">
+              <i class="tu-ni-cap-c tl"></i><i class="tu-ni-cap-c tr"></i><i class="tu-ni-cap-c bl"></i><i class="tu-ni-cap-c br"></i>
+              <span class="tu-ni-cap-ico"><i class="bi bi-camera"></i></span>
+              <span class="tu-ni-cap-txt">Fotografe o problema de perto,<br>com algo à volta que mostre o sítio</span>
+            </div>
+            <div class="tu-ni-cap-actions">
+              <button type="button" class="tu-ni-shot-btn" id="open-camera">
+                <i class="bi bi-camera-fill" aria-hidden="true"></i><b class="tu-ni-shot-first">Tirar fotografia</b><b class="tu-ni-shot-more">Adicionar fotografia</b>
+              </button>
+              <label class="tu-ni-shot-alt" for="photos-gallery"><i class="bi bi-images" aria-hidden="true"></i><span>Galeria</span></label>
+            </div>
+          </div>
+          <ul class="tu-ni-tips">
+            <li><i class="bi bi-geo-alt" aria-hidden="true"></i>O local fica registado com a fotografia</li>
+            <li><i class="bi bi-shield-check" aria-hidden="true"></i>Sem pessoas nem matrículas</li>
+            <li><i class="bi bi-images" aria-hidden="true"></i>Até {{ max_images }} fotografias</li>
+          </ul>
+        </div>
+        {{ field_error(errors, 'description') }}
+        {{ field_error(errors, 'location') }}
+        <input type="hidden" name="address" id="address" value="{{ form.get('address', '') }}">
+        <div class="row g-2 mt-1 tu-ni-coords">
           <div class="col-6">
             <label class="form-label small" for="latitude">Latitude</label>
             <input class="form-control form-control-sm{{ invalid(errors, 'location') }}" id="latitude" name="latitude" inputmode="decimal" value="{{ form.get('latitude', '') }}" placeholder="40.1405">
@@ -113,12 +130,8 @@
             <input class="form-control form-control-sm{{ invalid(errors, 'location') }}" id="longitude" name="longitude" inputmode="decimal" value="{{ form.get('longitude', '') }}" placeholder="-7.5012">
           </div>
         </div>
-        {{ field_error(errors, 'location') }}
-        <input type="hidden" name="address" id="address" value="{{ form.get('address', '') }}">
-        <div class="tu-address" id="address-box" {{ '' if form.get('address') else 'hidden' }}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
-          <span><small>Morada aproximada</small><b id="address-text">{{ form.get('address', '') }}</b></span>
-        </div>
+
+        {{ field_error(errors, 'title') }}
 
         <!-- RF14: deteção de repetidos. Preenchido pelo JavaScript antes de enviar;
              sem JavaScript, o servidor mostra aqui as ocorrências parecidas. -->
@@ -138,8 +151,10 @@
           {% endif %}
         </div>
 
-        <div id="summary" class="small text-muted mt-3"></div>
-        <button class="btn btn-primary btn-lg w-100 mt-3" type="submit" id="send">Enviar ocorrência</button>
+        <input type="hidden" name="privacy" value="1">
+        <button class="btn btn-primary btn-lg w-100 mt-3 tu-ni-send" type="submit" id="send">Enviar ocorrência</button>
+        <p class="tu-ni-fine">Ao enviar, confirma que as fotografias mostram só o problema, sem pessoas nem matrículas.</p>
+        {{ field_error(errors, 'privacy') }}
       </section>
 
       <div class="d-flex justify-content-between gap-2" id="wizard-nav" hidden>
@@ -150,22 +165,24 @@
   </div>
 </div>
 
-<!-- Câmara dentro da aplicação (getUserMedia) -->
+<!-- Câmara dentro da aplicação (getUserMedia): visor com guia de enquadramento, local registado em tempo real -->
 <div class="tu-camera" id="camera" hidden role="dialog" aria-modal="true" aria-label="Câmara">
   <video id="camera-video" playsinline autoplay muted></video>
   <div class="tu-camera-flash" id="camera-flash"></div>
+  <div class="tu-camera-guide" aria-hidden="true"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
   <div class="tu-camera-top">
     <button type="button" class="tu-camera-round" id="camera-close" aria-label="Fechar câmara"><i class="bi bi-x-lg"></i></button>
-    <span class="tu-camera-count" id="camera-count">0/{{ max_images }}</span>
+    <div class="tu-camera-title"><b>Fotografia <span id="camera-count">1 de {{ max_images }}</span></b>
+      <span class="tu-camera-gps" id="camera-gps" data-state="wait"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i><span>A obter o local…</span></span></div>
+    <button type="button" class="tu-camera-round" id="camera-flip" aria-label="Trocar de câmara" hidden><i class="bi bi-arrow-repeat"></i></button>
   </div>
-  <div class="tu-camera-hint"><i class="bi bi-shield-check"></i> Fotografe só o problema — sem pessoas nem matrículas.</div>
   <div class="tu-camera-msg" id="camera-msg" hidden></div>
+  <p class="tu-camera-hint">Enquadre só o problema · sem pessoas nem matrículas</p>
   <div class="tu-camera-bar">
     <div class="tu-camera-last" id="camera-last" aria-hidden="true"></div>
     <button type="button" class="tu-shutter" id="shutter" aria-label="Tirar fotografia"></button>
-    <button type="button" class="tu-camera-round" id="camera-flip" aria-label="Trocar de câmara"><i class="bi bi-arrow-repeat"></i></button>
+    <button type="button" class="tu-camera-done" id="camera-done" hidden>Concluído</button>
   </div>
-  <button type="button" class="btn btn-success tu-camera-done" id="camera-done" hidden><i class="bi bi-check-lg"></i> Concluído</button>
 </div>
 {% endif %}
 {% endblock %}

@@ -310,9 +310,10 @@ def test_paginas_incluem_mapa_das_freguesias(client):
 
 
 # ------------------------------------------------------------------ GPS (Google Maps)
-def test_detalhe_tem_gps_google_maps(client):
+def test_detalhe_como_chegar_dentro_da_app(client):
+    """«Como chegar» abre o caminho no mapa do Townly Up (sem sair para o Google Maps)."""
     login(client, "ana@teste.pt")
     incident_id = create_incident(client)  # 40.1405, -7.5012
     html = client.get(f"/incidents/{incident_id}").get_data(as_text=True)
-    assert "https://www.google.com/maps/dir/?api=1&amp;destination=40.1405,-7.5012&amp;travelmode=driving" in html
-    assert "https://www.google.com/maps/search/?api=1&amp;query=40.1405,-7.5012" in html
+    assert f"/mapa?caminho={incident_id}&amp;destino=40.1405,-7.5012" in html
+    assert "google.com/maps" not in html

@@ -30,6 +30,8 @@
   const lastEl = document.getElementById('camera-last');
   const msgEl = document.getElementById('camera-msg');
   const flash = document.getElementById('camera-flash');
+  const gpsEl = document.getElementById('camera-gps');
+  let gpsWatch = null, camFix = null;   // posição do telemóvel enquanto a câmara está aberta (vai com cada fotografia)
 
   let photos = [];            // [{file, source: 'camera' | 'galeria'}]
   let stream = null;
@@ -48,13 +50,18 @@
     input.files = dt.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
     render();
+    // O local segue a 1.ª fotografia: sempre que ela muda (nova, trocada ou apagada), o formulário volta a calcular o local.
+    const first = photos[0] || null;
+    document.dispatchEvent(new CustomEvent('tu-photos-changed', {
+      detail: first ? { id: first.id, source: first.source, gps: first.gps } : null }));
   }
 
-  function add(file, source) {
+  let nextId = 1;
+  function add(file, source, gps) {
     if (photos.length >= MAX) { Townly.toast(`Máximo de ${MAX} fotografias.`); return false; }
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { Townly.toast('Use fotografias JPEG, PNG ou WebP.'); return false; }
     if (file.size > MAX_BYTES) { Townly.toast('Essa fotografia tem mais de 5 MB.'); return false; }
-    photos.push({ file, source });
+    photos.push({ id: nextId++, file, source, gps: gps || null });
     return true;
   }
 
@@ -99,6 +106,41 @@
     return new File([blob], base + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
   }
 
+  // ------------------------------------------------------------ GPS guardado na fotografia (EXIF)
+  // Lê só a posição (latitude/longitude) do original, antes de ser reduzido — a versão enviada não leva metadados.
+  // Funciona com JPEG; noutros formatos (ou sem GPS) devolve null e usa-se a localização do telemóvel.
+  async function readGps(file) {
+    try {
+      const v = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+      if (v.getUint16(0) !== 0xFFD8) return null;
+      let o = 2;
+      while (o + 4 < v.byteLength) {
+        const marker = v.getUint16(o), size = v.getUint16(o + 2);
+        if (marker === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) return tiffGps(v, o + 10);   // «Exif»
+        if ((marker & 0xFF00) !== 0xFF00 || marker === 0xFFDA) return null;
+        o += 2 + size;
+      }
+    } catch (e) { /* fotografia sem EXIF legível */ }
+    return null;
+  }
+  function tiffGps(v, t) {
+    const le = v.getUint16(t) === 0x4949;
+    const u16 = i => v.getUint16(t + i, le), u32 = i => v.getUint32(t + i, le);
+    const entries = (ifd) => { const n = u16(ifd), out = {}; for (let k = 0; k < n; k++) { const e = ifd + 2 + k * 12; out[u16(e)] = e; } return out; };
+    const ifd0 = entries(u32(4));
+    if (!ifd0[0x8825]) return null;
+    const g = entries(u32(ifd0[0x8825] + 8));
+    if (!g[2] || !g[4]) return null;
+    const ref = tag => String.fromCharCode(v.getUint8(t + g[tag] + 8));
+    const dms = tag => { const p = u32(g[tag] + 8), r = i => u32(p + i * 8) / (u32(p + i * 8 + 4) || 1); return r(0) + r(1) / 60 + r(2) / 3600; };
+    let lat = dms(2), lng = dms(4);
+    if (g[1] && ref(1) === 'S') lat = -lat;
+    if (g[3] && ref(3) === 'W') lng = -lng;
+    if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  }
+
+
   // Junta as fotografias escolhidas (galeria ou câmara do telemóvel), uma a uma, com indicação de progresso.
   let busy = false;
   async function addMany(files, source) {
@@ -110,10 +152,11 @@
     actions.classList.add('is-busy');
     for (const f of list) {
       try {
-        add(await prepare(f), source);
+        const where = await readGps(f);
+        add(await prepare(f), source, where);
       } catch (e) {
         Townly.toast(e.message === 'tipo' ? 'Escolha uma fotografia (imagem).'
-          : 'Não foi possível abrir essa fotografia neste telemóvel. Tire-a com o botão «Tirar fotografia».');
+          : 'Não foi possível abrir essa fotografia neste telemóvel. Tire-a com o botão «Câmara».');
       }
       sync();
     }
@@ -183,8 +226,23 @@
     video.srcObject = null;
   }
 
+  // Local em tempo real enquanto a câmara está aberta: cada fotografia leva a posição do momento em que foi tirada.
+  function setGps(state, text) { if (!gpsEl) return; gpsEl.dataset.state = state; gpsEl.lastElementChild.textContent = text; }
+  function startGps() {
+    camFix = null;
+    if (!navigator.geolocation) { setGps('off', 'Sem local · marque-o depois no mapa'); return; }
+    setGps('wait', 'A obter o local…');
+    gpsWatch = navigator.geolocation.watchPosition(pos => {
+      camFix = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      setGps('ok', `Local registado · ± ${Math.max(5, Math.round(pos.coords.accuracy))} m`);
+    }, () => { if (!camFix) setGps('off', 'Sem local · marque-o depois no mapa'); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  }
+  function stopGps() { if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
+
   async function openCamera() {
     cam.hidden = false;
+    startGps();
     document.body.classList.add('tu-no-scroll');
     msgEl.hidden = true;
     shutter.disabled = true;
@@ -202,6 +260,7 @@
 
   function closeCamera() {
     stopStream();
+    stopGps();
     cam.hidden = true;
     document.body.classList.remove('tu-no-scroll');
     openBtn.focus();
@@ -233,7 +292,7 @@
   }
 
   function updateCount() {
-    countEl.textContent = `${photos.length}/${MAX}`;
+    countEl.textContent = `${Math.min(photos.length + 1, MAX)} de ${MAX}`;
     doneBtn.hidden = photos.length === 0;
     shutter.disabled = !stream || photos.length >= MAX;
   }
@@ -252,8 +311,8 @@
     canvas.toBlob(blob => {
       if (!blob) { Townly.toast('Não foi possível tirar a fotografia.'); updateCount(); return; }
       const file = new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      if (add(file, 'camera')) {
-        sync();
+      if (add(file, 'camera', camFix)) {
+        sync();   // tirada agora: o local é onde o telemóvel está
         flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
         lastEl.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.5)})`;
         if (navigator.vibrate) navigator.vibrate(30);

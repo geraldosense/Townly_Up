@@ -1,27 +1,44 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
 {% block title %}Ocorrência enviada{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-7 col-lg-5">
-    <div class="tu-card text-center">
-      <div class="card-body p-4 p-md-5">
-        <div class="tu-success-icon"><i class="bi bi-check-lg"></i></div>
-        <h1 class="h4 mt-3">Ocorrência enviada com sucesso!</h1>
-        <p class="text-muted small mb-0">Registada em {{ incident.created_at|local }}</p>
-        <div class="tu-ticket my-4">
-          <div class="small fw-semibold">Número de ticket</div>
-          <div class="tu-ticket-code">{{ incident.ticket }}</div>
-          <span class="tu-badge st-registada">Registada</span>
-        </div>
-        <p class="tu-mail-sent"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-          Enviámos este número para <b>{{ masked_email }}</b>.</p>
-        <p class="text-muted small">A sua ocorrência será analisada pela entidade responsável. Guarde este número para acompanhar o pedido.</p>
-        <div class="d-grid gap-2">
-          <a class="btn btn-primary" href="{{ url_for('incident_detail', incident_id=incident.id) }}">Ver detalhe do ticket</a>
-          <a class="btn btn-link text-decoration-none" href="{{ url_for('citizen_dashboard') }}">Ver as minhas ocorrências</a>
-        </div>
-      </div>
+{# Confirmação depois de comunicar: o número de referência, um resumo curto e o próximo passo. #}
+<div class="tu-tk">
+  <div class="tu-tk-ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5.5 12.5 4.2 4.2L18.5 8"/></svg></div>
+  <h1>Ocorrência enviada</h1>
+  <p class="tu-tk-lede">{{ incident.organization or 'A entidade responsável' }} já recebeu o seu pedido.</p>
+
+  <section class="tu-tk-card" aria-label="Número de referência">
+    <div class="tu-tk-ref">
+      <span>Número de referência</span>
+      <div class="tu-tk-code"><b id="tk-code">{{ incident.ticket }}</b>
+        <button type="button" class="tu-tk-copy" id="tk-copy" data-code="{{ incident.ticket }}" hidden>Copiar</button></div>
     </div>
-  </div>
+    <dl class="tu-tk-rows">
+      <div><dt>Problema</dt><dd>{{ incident.title }}</dd></div>
+      {% if incident.address or incident.parish %}<div><dt>Local</dt><dd>{{ incident.address or incident.parish }}</dd></div>{% endif %}
+      <div><dt>Estado</dt><dd>{{ status_badge(incident.status) }}</dd></div>
+      <div><dt>Data</dt><dd>{{ incident.created_at|local }}</dd></div>
+    </dl>
+  </section>
+
+  <p class="tu-tk-mail"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+    <span>Enviámos este número para <b>{{ masked_email }}</b>. Vai receber um alerta sempre que o estado mudar.</span></p>
+
+  <a class="btn btn-primary btn-lg w-100 tu-tk-main" href="{{ url_for('incident_detail', incident_id=incident.id) }}">Acompanhar a ocorrência</a>
+  <a class="tu-tk-alt" href="{{ url_for('index') }}">Voltar ao início</a>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {   // «Copiar» o número de referência (só onde o navegador o permite)
+    const b = document.getElementById('tk-copy');
+    if (!b || !navigator.clipboard || !window.isSecureContext) return;
+    b.hidden = false;
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.code); b.textContent = 'Copiado'; setTimeout(() => { b.textContent = 'Copiar'; }, 1800); }
+      catch (e) { Townly.toast('Não foi possível copiar.'); }
+    });
+  })();
+</script>
 {% endblock %}

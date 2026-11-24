@@ -31,25 +31,26 @@
     el._map = map;  // permite ao assistente redesenhar o mapa quando o passo fica visível
     let marker = null;
 
-    function place(lat, lng, pan) {
+    function place(lat, lng, pan, manual) {
       if (marker) marker.setLatLng([lat, lng]);
       else marker = L.marker([lat, lng], { draggable: true }).addTo(map)
-        .on('dragend', e => { const p = e.target.getLatLng(); place(p.lat, p.lng, false); });
+        .on('dragend', e => { const p = e.target.getLatLng(); place(p.lat, p.lng, false, true); });
       latInput.value = lat.toFixed(6);
       lngInput.value = lng.toFixed(6);
       if (pan) map.setView([lat, lng], Math.max(map.getZoom(), 17));
       // Avisa o formulário (usado para procurar ocorrências iguais perto deste ponto).
-      el.dispatchEvent(new CustomEvent('tu-location', { bubbles: true, detail: { lat, lng } }));
+      el.dispatchEvent(new CustomEvent('tu-location', { bubbles: true, detail: { lat, lng, manual: !!manual } }));
     }
+    el._place = place;  // o «Comunicar» coloca aqui o local registado com a fotografia
 
     if (hasValue) place(start[0], start[1], false);
-    map.on('click', e => place(e.latlng.lat, e.latlng.lng, false));
+    map.on('click', e => place(e.latlng.lat, e.latlng.lng, false, true));
 
     // Alternativa manual: ao escrever as coordenadas, o marcador acompanha.
     [latInput, lngInput].forEach(input => input.addEventListener('change', () => {
       const lat = parseFloat(latInput.value.replace(',', '.'));
       const lng = parseFloat(lngInput.value.replace(',', '.'));
-      if (!isNaN(lat) && !isNaN(lng)) place(lat, lng, true);
+      if (!isNaN(lat) && !isNaN(lng)) place(lat, lng, true, true);
     }));
 
     const btn = document.getElementById('use-location');

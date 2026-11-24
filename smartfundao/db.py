@@ -228,13 +228,22 @@ def migrate(db):
         with open(os.path.join(folder, name), encoding="utf-8") as fh:
             script = fh.read()
         now = datetime.datetime.now(datetime.timezone.utc).strftime(TS_FMT)
-        if db.dialect == "sqlite":
-            # executescript não aceita parâmetros: a transação vai dentro do próprio script.
-            db.executescript(f"BEGIN;\n{script}\nINSERT INTO schema_migrations VALUES ('{version}', '{now}');\nCOMMIT;")
-        else:
-            with db:
-                db.executescript(script)
-                db.execute("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)", (version, now))
+        try:
+            if db.dialect == "sqlite":
+                # executescript não aceita parâmetros: a transação vai dentro do próprio script.
+                db.executescript(f"BEGIN;\n{script}\nINSERT INTO schema_migrations VALUES ('{version}', '{now}');\nCOMMIT;")
+            else:
+                with db:
+                    db.executescript(script)
+                    db.execute("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)", (version, now))
+        except Exception:
+            # Com «flask run --debug» arrancam dois processos ao mesmo tempo e ambos tentam migrar: se o outro já
+            # aplicou esta migração, segue em frente; se não, o erro é verdadeiro.
+            if db.dialect == "sqlite" and db.conn.in_transaction:
+                db.conn.execute("ROLLBACK")
+            if db.execute("SELECT 1 FROM schema_migrations WHERE version = ?", (version,)).fetchone():
+                continue
+            raise
         applied.append(name)
     return applied
 

@@ -1,14 +1,19 @@
-{# Mensagens rápidas da aplicação: aparecem e desaparecem sozinhas (os erros ficam um pouco mais tempo).
-   Tocar na mensagem ou no × fecha-a logo; com o dedo/rato por cima, espera. #}
+{# Mensagens rápidas da aplicação (depois de guardar, apagar, entrar…): um aviso discreto que desaparece sozinho.
+   Sem botão de fechar. Com o dedo/rato por cima espera; tocar fá-lo sair mais cedo. #}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
+  {% set icons = {
+    'success': '<path d="m6.5 12.5 3.6 3.6L17.5 8.7"/>',
+    'danger': '<path d="M12 7.5v5.5M12 16.4v.1"/>',
+    'warning': '<path d="M12 7.5v5.5M12 16.4v.1"/>',
+    'info': '<path d="M12 11v5.5M12 7.6v.1"/>',
+  } %}
   <div class="tu-flashes" aria-live="polite">
   {% for category, message in messages %}
-    <div class="alert alert-{{ category }} tu-alert tu-flash" role="{{ 'alert' if category == 'danger' else 'status' }}"
-         data-timeout="{{ 8000 if category in ('danger', 'warning') else 4500 }}">
+    {% set kind = category if category in icons else 'info' %}
+    <div class="tu-flash is-{{ kind }}" role="{{ 'alert' if kind == 'danger' else 'status' }}" data-timeout="{{ 6000 if kind in ('danger', 'warning') else 3500 }}">
+      <span class="tu-flash-ico" aria-hidden="true"><svg viewBox="0 0 24 24">{{ icons[kind]|safe }}</svg></span>
       <span class="tu-flash-text">{{ message }}</span>
-      <button type="button" class="btn-close" data-flash-close aria-label="Fechar"></button>
-      <i class="tu-flash-bar" aria-hidden="true"></i>
     </div>
   {% endfor %}
   </div>
@@ -16,21 +21,17 @@
   (function () {
     document.querySelectorAll('.tu-flash:not([data-ready])').forEach(function (el) {
       el.setAttribute('data-ready', '1');
-      var total = +el.dataset.timeout || 4500, left = total, start = Date.now(), timer = null;
-      el.style.setProperty('--tu-flash-ms', total + 'ms');
+      var left = +el.dataset.timeout || 3500, start = 0, timer = null;
       function hide() {
         clearTimeout(timer);
         el.classList.add('is-leaving');
-        setTimeout(function () {
-          var box = el.parentElement; el.remove();
-          if (box && !box.children.length) box.remove();
-        }, 320);
+        setTimeout(function () { var box = el.parentElement; el.remove(); if (box && !box.children.length) box.remove(); }, 300);
       }
-      function run() { start = Date.now(); el.classList.remove('is-paused'); timer = setTimeout(hide, left); }
-      function pause() { clearTimeout(timer); left = Math.max(800, left - (Date.now() - start)); el.classList.add('is-paused'); }
+      function run() { start = Date.now(); timer = setTimeout(hide, left); }
+      function pause() { clearTimeout(timer); left = Math.max(1200, left - (Date.now() - start)); }
       el.addEventListener('mouseenter', pause); el.addEventListener('mouseleave', run);
       el.addEventListener('touchstart', pause, { passive: true }); el.addEventListener('touchend', run);
-      el.addEventListener('click', function (e) { if (e.target.closest('[data-flash-close]') || !e.target.closest('a')) hide(); });
+      el.addEventListener('click', function (e) { if (!e.target.closest('a')) hide(); });
       run();
     });
   })();

@@ -1,13 +1,13 @@
-/* Townly Up — «Comunicar em 3 passos».
+/* Townly Up — «Comunicar em 2 passos».
  * Sem JavaScript o formulário mostra tudo numa página e continua a funcionar.
- * Com JavaScript vira um assistente: 1) categoria  2) foto + descrição  3) local + enviar.
+ * Com JavaScript vira um assistente: 1) tipo de problema  2) fotografia (o local fica registado com ela) + enviar.
  * A validação a sério é sempre feita no servidor (services.create_incident).
  */
 (function () {
   const form = document.getElementById('incident-form');
   if (!form) return;
   const panes = [...form.querySelectorAll('.tu-step-pane')];
-  const bars = [...form.querySelectorAll('.tu-steps span')];
+  const bars = [...form.querySelectorAll('.tu-stepper li')];
   const nav = document.getElementById('wizard-nav');
   const prev = document.getElementById('prev');
   const next = document.getElementById('next');
@@ -16,7 +16,6 @@
   const mapEl = document.getElementById('map');
   const MAX = 3;
   let step = parseInt(form.dataset.errorStep || '1', 10);
-  let located = false;
   let dismissed = new Set();
 
   form.classList.add('js-wizard');
@@ -26,16 +25,15 @@
   function show(n) {
     step = n;
     panes.forEach(p => p.classList.toggle('is-current', +p.dataset.step === n));
-    bars.forEach((b, i) => b.classList.toggle('done', i < n));
+    bars.forEach((b, i) => {
+      b.classList.toggle('is-done', i < n - 1);
+      b.classList.toggle('is-current', i === n - 1);
+      if (i === n - 1) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
     prev.style.visibility = n === 1 ? 'hidden' : 'visible';
     next.hidden = n === panes.length;
-    if (n === 3) {
-      if (mapEl._map) setTimeout(() => mapEl._map.invalidateSize(), 50);
-      const hasCoords = document.getElementById('latitude').value && document.getElementById('longitude').value;
-      if (!located && !hasCoords) { located = true; document.getElementById('use-location').click(); }
-      summary();
-      checkDuplicates();
-    }
+    nav.hidden = n === panes.length;   // no último passo: só «Enviar» (voltar = tocar no passo 1)
+    if (n === panes.length && mapEl._map) setTimeout(() => mapEl._map.invalidateSize(), 50);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -47,10 +45,12 @@
       if (!photos.files.length) { Townly.toast('Tire uma fotografia do problema (ou escolha da galeria).'); return false; }
       if (photos.files.length > MAX) { Townly.toast('Máximo de ' + MAX + ' fotografias.'); return false; }
       if (document.getElementById('description').value.trim().length < 10) {
-        Townly.toast('Descreva o problema (pelo menos 10 caracteres).'); return false;
+        Townly.toast('Descreva o problema numa frase (pelo menos 10 caracteres).');
+        caption.focus(); return false;
       }
-      if (!document.getElementById('privacy').checked) {
-        Townly.toast('Confirme que as fotos não identificam pessoas.'); return false;
+      if (!document.getElementById('latitude').value || !document.getElementById('longitude').value) {
+        setState('manual'); Townly.toast('Falta o local: toque no mapa no sítio do problema.');
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' }); return false;
       }
     }
     return true;
@@ -58,6 +58,8 @@
 
   next.addEventListener('click', () => { if (valid(step)) show(step + 1); });
   prev.addEventListener('click', () => show(Math.max(1, step - 1)));
+  // Tocar num passo já feito volta a esse passo.
+  bars.forEach((b, i) => b.addEventListener('click', () => { if (i < step - 1) show(i + 1); }));
 
   // Escolher a categoria mostra os subtipos (logo abaixo); escolher o subtipo avança para o passo 2.
   // Categorias sem subtipos (ou só «Outro») avançam logo, como antes.
@@ -74,14 +76,83 @@
   // ------------------------------------------------------------ fotografias
   // A câmara, a galeria e a pré-visualização estão em photos.js (que preenche #photos).
 
-  function summary() {
-    const cat = form.querySelector('input[name="category_id"]:checked');
-    const sub = form.querySelector('input[name="subcategory_id"]:checked:not(:disabled)');
-    const label = (cat ? form.querySelector(`label[for="${cat.id}"]`).textContent.trim() : '—') +
-                  (sub ? ' › ' + sub.nextElementSibling.textContent.trim() : '');
-    document.getElementById('summary').textContent =
-      `Resumo: ${label} · ${photos.files.length} fotografia(s) · «${document.getElementById('description').value.trim().slice(0, 60)}»`;
+  // A descrição é uma legenda da fotografia: cresce à medida que se escreve.
+  const caption = document.getElementById('description');
+  const grow = () => { caption.style.height = 'auto'; caption.style.height = Math.min(caption.scrollHeight, 160) + 'px'; };
+  caption.addEventListener('input', grow);
+  document.addEventListener('tu-photos-changed', () => setTimeout(grow, 0));
+
+  // ------------------------------------------------------------ local registado com a fotografia
+  // 1.º a posição guardada na própria fotografia (GPS/EXIF); 2.º se não tiver, a localização do telemóvel nesse momento.
+  // Aparece numa linha (morada + origem). O mapa só abre em «Alterar» ou quando não foi possível obter o local.
+  // O local segue a 1.ª fotografia: trocá-la volta a calcular o local; um acerto no mapa vale só para essa fotografia.
+  const card = document.getElementById('loc-card');
+  const sourceEl = document.getElementById('loc-source');
+  const addrEl = document.getElementById('address-text'), addrInput = document.getElementById('address');
+  const noteEl = document.getElementById('loc-note');
+  const editBtn = document.getElementById('loc-edit');
+  const latEl = document.getElementById('latitude'), lngEl = document.getElementById('longitude');
+  const LABELS = { foto: 'Da fotografia', telemovel: 'Localização do telemóvel', mapa: 'Marcado no mapa' };
+  let origin = card.dataset.state === 'set' ? 'mapa' : null;
+  let basedOn = null, asking = false;
+
+  function openMap(open) {
+    card.classList.toggle('is-open', open);
+    editBtn.setAttribute('aria-expanded', String(open));
+    editBtn.textContent = open ? 'Concluído' : 'Alterar';
+    if (open) setTimeout(() => mapEl._map && mapEl._map.invalidateSize(), 30);
   }
+  function setState(state) {
+    card.dataset.state = state;
+    if (state === 'locating') { addrEl.textContent = 'A registar o local…'; sourceEl.textContent = 'A obter a localização do telemóvel'; }
+    if (state === 'manual') {
+      addrEl.textContent = 'Marque o local no mapa';
+      sourceEl.textContent = 'Não foi possível obter a localização automaticamente';
+      openMap(true);
+    }
+    if (state === 'wait') openMap(false);
+  }
+  function setLocation(lat, lng, from, accuracy) {
+    origin = from;
+    if (from !== 'mapa') { addrEl.textContent = 'Local registado'; addrInput.value = ''; }
+    setState('set');
+    if (mapEl._place) mapEl._place(lat, lng, true);
+    sourceEl.textContent = LABELS[from] + (accuracy ? ` · ± ${Math.max(5, Math.round(accuracy))} m` : '');
+  }
+  function deviceLocation(fresh) {
+    if (!navigator.geolocation) { if (!origin) setState('manual'); return; }
+    if (asking) return;
+    asking = true;
+    if (!origin) setState('locating');
+    navigator.geolocation.getCurrentPosition(
+      pos => { asking = false; setLocation(pos.coords.latitude, pos.coords.longitude, 'telemovel', pos.coords.accuracy); },
+      () => { asking = false; if (!origin) setState('manual'); },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: fresh ? 0 : 20000 }
+    );
+  }
+  document.addEventListener('tu-photos-changed', e => {
+    const first = e.detail;
+    if (!first) {   // sem fotografias: o local volta a ficar à espera
+      basedOn = null; origin = null; latEl.value = ''; lngEl.value = ''; addrInput.value = '';
+      sourceEl.textContent = ''; setState('wait');
+      return;
+    }
+    if (first.id === basedOn) return;
+    basedOn = first.id;
+    origin = null;
+    if (first.gps) setLocation(first.gps.lat, first.gps.lng, 'foto', first.gps.accuracy);
+    else deviceLocation(true);
+  });
+  mapEl.addEventListener('tu-location', e => {
+    if (!e.detail || !e.detail.manual) return;
+    origin = 'mapa'; card.dataset.state = 'set';
+    addrEl.textContent = 'Local registado'; addrInput.value = '';
+    sourceEl.textContent = LABELS.mapa;
+  });
+  editBtn.addEventListener('click', () => openMap(!card.classList.contains('is-open')));
+  document.getElementById('loc-now').addEventListener('click', () => { origin = null; deviceLocation(true); });
+  if (card.dataset.state === 'set') sourceEl.textContent = LABELS.mapa;
+
 
   // ------------------------------------------------------------ repetidos (RF14, deteção inteligente)
   // O servidor compara local, categoria, texto e «impressão digital» das fotografias.
@@ -181,7 +252,7 @@
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    for (let n = 1; n <= 2; n++) if (!valid(n)) { show(n); return; }
+    for (let n = 1; n <= 2; n++) if (!valid(n)) { if (n !== step) show(n); return; }
     const send = document.getElementById('send');
     send.disabled = true;  // evita envios duplicados ao carregar duas vezes
     const open = checked ? [...dupBox.querySelectorAll('.tu-dup-item')] : await checkDuplicates();

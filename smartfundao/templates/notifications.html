@@ -1,27 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Alertas{% endblock %}
 {% block content %}
-<div class="tu-alerts">
-  <div class="tu-page-head">
-    <div>
-      <div class="tu-eyebrow">{{ g.user.org_name or 'A sua conta' }}</div>
-      <h1>Alertas</h1>
-    </div>
-    <a class="btn btn-outline-secondary" href="{{ url_for('settings') }}#notificacoes">
-      <svg class="tu-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Definições de alertas</a>
-  </div>
+{# Alertas no mesmo desenho das Definições: lista em cartão, ícone por tipo, texto e data; os novos ficam marcados. #}
+{% set icons = {'status': 'arrow-repeat', 'zone': 'geo-alt-fill', 'assigned': 'inbox-fill'} %}
+{% set labels = {'status': 'Evolução', 'zone': 'Novo problema', 'assigned': 'Para a sua entidade'} %}
+<div class="tu-s tu-al">
+  <header class="tu-al-head">
+    <div><p>{{ g.user.org_name or 'A sua conta' }}</p><h1>Alertas</h1></div>
+    <a class="tu-al-set" href="{{ url_for('settings') }}#notificacoes" aria-label="Definições de alertas"><i class="bi bi-sliders" aria-hidden="true"></i><span>Definições</span></a>
+  </header>
 
-  {% set labels = {'status': 'Evolução', 'zone': 'Novo problema', 'assigned': 'Para a sua entidade'} %}
-  {% for n in items %}
-    <a class="tu-item" href="{{ url_for('incident_detail', incident_id=n.incident_id) }}">
-      <div class="flex-grow-1 min-w-0">
-        <div class="small text-muted">{{ labels[n.kind] }} · {{ n.created_at|local }}</div>
-        <div class="{{ 'fw-bold' if not n.is_read }}">{{ n.message }}</div>
-      </div>
-      {% if not n.is_read %}<span class="tu-dot-badge" title="Por ler">novo</span>{% endif %}
-    </a>
+  {% if items %}
+  <div class="tu-s-list tu-al-list">
+    {% for n in items %}
+      <a class="tu-al-row{{ ' is-new' if not n.is_read }}" href="{{ url_for('incident_detail', incident_id=n.incident_id) }}">
+        <span class="tu-al-ico is-{{ n.kind }}" aria-hidden="true"><i class="bi bi-{{ icons.get(n.kind, 'bell-fill') }}"></i></span>
+        <span class="tu-al-txt">
+          <small>{{ labels.get(n.kind, 'Alerta') }} · {{ n.created_at|local }}</small>
+          <b>{{ n.message }}</b>
+        </span>
+        {% if not n.is_read %}<em class="tu-al-dot" title="Por ler"><span class="visually-hidden">novo</span></em>{% endif %}
+        <svg class="tu-s-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
+    {% endfor %}
+  </div>
   {% else %}
-    <div class="tu-empty"><p class="mb-0">Ainda não tem alertas.</p></div>
-  {% endfor %}
+  <div class="tu-s-list"><div class="tu-al-empty"><i class="bi bi-bell" aria-hidden="true"></i><b>Ainda não tem alertas</b>
+    <small>Vai receber um alerta quando uma ocorrência sua mudar de estado ou quando surgir um problema na sua zona.</small></div></div>
+  {% endif %}
 </div>
 {% endblock %}

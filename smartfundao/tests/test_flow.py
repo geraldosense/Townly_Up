@@ -260,7 +260,9 @@ def test_ta06_ticket_de_outro_cidadao(client, app):
         image_id = sv.get_images(get_db(), incident_id)[0]["id"]
     client.post("/logout")
     login(client, "carlos@teste.pt")
-    assert client.get(f"/incidents/{incident_id}").status_code == 403
+    # a ficha privada não abre: segue para a ficha pública no mapa (sem nome, email nem descrição do autor)
+    resp = client.get(f"/incidents/{incident_id}")
+    assert resp.status_code == 302 and resp.headers["Location"].endswith(f"/mapa?ocorrencia={incident_id}")
     assert client.get(f"/media/{image_id}").status_code == 403
     assert "Buraco na estrada" not in client.get("/citizen").get_data(as_text=True)
 

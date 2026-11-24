@@ -244,7 +244,7 @@
     const n = i.seen > 0 ? `<span class="tu-gpin-n">${i.seen + 1}</span>` : '';
     return L.divIcon({
       className: 'tu-gpin-wrap', iconSize: [36, 46], iconAnchor: [18, 44], popupAnchor: [0, -38],
-      html: `<div class="tu-gpin" style="--pin:${i.color};--st:${COLORS[g]}"><i class="bi bi-${i.icon}"></i></div>${n}`
+      html: `<div class="tu-gpin-up"><div class="tu-gpin" style="--pin:${i.color};--st:${COLORS[g]}"><i class="bi bi-${i.icon}"></i></div>${n}</div>`
     });
   }
 
@@ -528,10 +528,11 @@
     box.append(people);
 
     const nav = el('div', 'd-flex gap-2 mt-3');
-    const go = el('a', 'btn btn-sm btn-primary flex-fill');
-    go.href = Townly.gmapsDirections(i.lat, i.lng);
-    go.target = '_blank'; go.rel = 'noopener';
-    go.append(el('i', 'bi bi-sign-turn-right-fill'), document.createTextNode(' Como chegar'));
+    // Caminho até aqui, em tempo real, sem sair da aplicação (ver «caminho» mais abaixo).
+    const go = el('button', 'btn btn-sm btn-primary flex-fill');
+    go.type = 'button';
+    go.append(el('i', 'bi bi-sign-turn-right-fill'), document.createTextNode(' Caminho até aqui'));
+    go.addEventListener('click', () => startRoute(i));
     nav.append(go);
     if (state.view === 'lista' && map) {
       const see = el('button', 'btn btn-sm btn-outline-primary flex-fill', 'Ver no mapa');
@@ -689,6 +690,375 @@
     }, () => Townly.toast('Não foi possível obter a sua localização.'), { enableHighAccuracy: true, timeout: 10000 });
   });
 
+  // ---------------------------------------------------------------- caminho até à ocorrência (tempo real, dentro da app)
+  // A posição do munícipe é seguida com watchPosition; o percurso vem do OSRM (routing.openstreetmap.de, dados
+  // OpenStreetMap), a pé ou de carro. Se a pessoa se afastar do caminho, é recalculado (no máximo a cada 8 s).
+  const navBox = document.getElementById('gm-nav');
+  const navMain = document.getElementById('gm-nav-main'), navSub = document.getElementById('gm-nav-sub');
+  const navCenter = document.getElementById('gm-nav-center');
+  const ROUTERS = { foot: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/',
+                    car: 'https://routing.openstreetmap.de/routed-car/route/v1/driving/' };
+  const SPEED = { foot: 1.3, car: 8 };    // m/s, só quando não há percurso (linha reta)
+  const nv = { on: false, dest: null, mode: 'foot', watch: null, me: null, path: [], cum: [], secPerM: 1 / 1.3,
+               layers: [], acc: null, last: 0, busy: null, follow: true, arrived: false, straight: false, wake: null,
+               steps: [], said: {}, voice: false };
+
+  const R = 6371000, rad = d => d * Math.PI / 180;
+  function meters(a, b) {   // distância (m) entre [lat, lng]
+    const x = rad(b[1] - a[1]) * Math.cos(rad((a[0] + b[0]) / 2)), y = rad(b[0] - a[0]);
+    return Math.sqrt(x * x + y * y) * R;
+  }
+  // Ponto do percurso mais perto de p: devolve {i (segmento), t, d (m do caminho), along (m já percorridos)}
+  function nearest(p) {
+    let best = { d: Infinity, i: 0, t: 0 };
+    const k = Math.cos(rad(p[0]));
+    for (let i = 0; i < nv.path.length - 1; i++) {
+      const a = nv.path[i], b = nv.path[i + 1];
+      const ax = a[1] * k, ay = a[0], bx = b[1] * k, by = b[0], px = p[1] * k, py = p[0];
+      const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+      const t = len ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len)) : 0;
+      const q = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+      const d = meters(p, q);
+      if (d < best.d) best = { d, i, t, q };
+    }
+    best.along = nv.cum[best.i] + meters(nv.path[best.i], best.q || nv.path[0]);
+    return best;
+  }
+  function fmtDist(m) { return m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`; }
+  function fmtTime(s) { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+
+  function clearRouteLayers() { nv.layers.forEach(l => map.removeLayer(l)); nv.layers = []; }
+  function drawRoute(points, dashed) {
+    clearRouteLayers();
+    nv.layers.push(L.polyline(points, { color: '#fff', weight: 9, opacity: .95, interactive: false }).addTo(map));
+    nv.layers.push(L.polyline(points, { color: '#1a73e8', weight: 5, opacity: 1, dashArray: dashed ? '2 10' : null,
+                                        lineCap: 'round', interactive: false }).addTo(map));
+  }
+
+  async function fetchRoute(first) {
+    if (!nv.me || !nv.dest) return;
+    nv.last = Date.now();
+    if (nv.busy) nv.busy.abort();
+    const ctrl = nv.busy = new AbortController();
+    const url = `${ROUTERS[nv.mode]}${nv.me[1]},${nv.me[0]};${nv.dest.lng},${nv.dest.lat}?overview=full&geometries=geojson&steps=true`;
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      const data = await res.json();
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length) throw new Error('sem rota');
+      const r = data.routes[0];
+      nv.path = r.geometry.coordinates.map(c => [c[1], c[0]]).concat([[nv.dest.lat, nv.dest.lng]]);
+      nv.secPerM = r.distance > 0 ? r.duration / r.distance : 1 / SPEED[nv.mode];
+      nv.straight = false;
+      nv.steps = ((r.legs && r.legs[0] && r.legs[0].steps) || []).map(st => ({
+        loc: [st.maneuver.location[1], st.maneuver.location[0]], type: st.maneuver.type, mod: st.maneuver.modifier || '',
+        exit: st.maneuver.exit, name: st.name || '', ref: st.ref || '' }));
+      nv.said = {};
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      nv.path = [nv.me, [nv.dest.lat, nv.dest.lng]];       // sem serviço de rotas: linha reta (aproximada)
+      nv.secPerM = 1 / SPEED[nv.mode];
+      nv.straight = true;
+      nv.steps = [];
+    } finally { if (nv.busy === ctrl) nv.busy = null; }
+    nv.cum = [0];
+    for (let i = 1; i < nv.path.length; i++) nv.cum.push(nv.cum[i - 1] + meters(nv.path[i - 1], nv.path[i]));
+    nv.steps.forEach(st => { st.along = nearest(st.loc).along; });   // onde fica cada manobra ao longo do caminho
+    if (!nv.on) return;
+    drawRoute(nv.path, nv.straight);
+    if (first) map.fitBounds(L.latLngBounds(nv.path).pad(0.25), { maxZoom: 17 });
+    progress();
+  }
+
+  function progress() {
+    if (!nv.me || !nv.path.length) return;
+    const total = nv.cum[nv.cum.length - 1];
+    const n = nearest(nv.me);
+    const left = Math.max(0, total - n.along);
+    const toDest = meters(nv.me, [nv.dest.lat, nv.dest.lng]);
+    // Já percorrido: o traço começa onde a pessoa está.
+    if (n.q && nv.layers.length) {
+      const rest = [n.q].concat(nv.path.slice(n.i + 1));
+      nv.layers.forEach(l => l.setLatLngs(rest));
+    }
+    turnBanner(n.along, left);
+    if (toDest < 25) {
+      nv.arrived = true;
+      turnShow('arrive', '', 'Chegou ao destino', `${nv.dest.ticket} · ${nv.dest.name}`);
+      say('arrive', 'Chegou ao destino.');
+      navMain.textContent = 'Chegou ao local';
+      navSub.textContent = `${nv.dest.ticket} · ${nv.dest.name}`;
+      navCenter.textContent = 'Ver ocorrência';
+      return;
+    }
+    nv.arrived = false;
+    navCenter.textContent = 'Centrar';
+    const eta = new Date(Date.now() + left * nv.secPerM * 1000);
+    navMain.textContent = `${fmtTime(left * nv.secPerM)} · ${fmtDist(left)}`;
+    navSub.textContent = (nv.straight ? 'Distância em linha reta · ' : '') +
+      `${nv.mode === 'foot' ? 'A pé' : 'De carro'} · chegada às ${eta.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}`;
+    // Fora do caminho (> 40 m): recalcula, no máximo a cada 8 s.
+    if (!nv.straight && n.d > 40 && Date.now() - nv.last > 8000) fetchRoute(false);
+    if (nv.straight && Date.now() - nv.last > 30000) fetchRoute(false);
+  }
+
+  function onPosition(pos) {
+    const first = !nv.me;
+    nv.me = [pos.coords.latitude, pos.coords.longitude];
+    state.me = nv.me;
+    if (meMarker) meMarker.setLatLng(nv.me);
+    else meMarker = L.marker(nv.me, { icon: L.divIcon({ className: '', html: '<div class="tu-me-dot"></div>', iconSize: [18, 18] }),
+                                      zIndexOffset: 1000, interactive: false }).addTo(map);
+    const r = Math.min(pos.coords.accuracy || 0, 150);
+    if (nv.acc) nv.acc.setLatLng(nv.me).setRadius(r);
+    else nv.acc = L.circle(nv.me, { radius: r, color: '#1a73e8', weight: 1, opacity: .35, fillOpacity: .1, interactive: false }).addTo(map);
+    if (first) { fetchRoute(true); return; }
+    if (nv.follow && !nv.arrived) map.panTo(nv.me, { animate: true, duration: .5 });
+    progress();
+    headingTick();
+  }
+
+  function startRoute(i) {
+    if (!navigator.geolocation) { Townly.toast('Este navegador não permite obter a localização.'); return; }
+    if (!window.isSecureContext) { Townly.toast('Para seguir o caminho, abra o Townly Up em https.'); return; }
+    if (state.view === 'lista') setView('mapa');
+    if (!map) return;
+    if (nv.on) stopRoute();
+    closeSheet();
+    Object.assign(nv, { on: true, dest: { id: i.id, lat: i.lat, lng: i.lng, ticket: i.ticket,
+      name: i.subcategory && i.subcategory !== 'Outro' ? i.subcategory : i.category },
+      me: null, path: [], cum: [], follow: true, arrived: false, last: 0 });
+    navMain.textContent = 'A calcular o caminho…';
+    navSub.textContent = 'A obter a sua localização';
+    navCenter.textContent = 'Centrar';
+    navBox.hidden = false;
+    root.classList.add('is-nav');
+    turnBox.hidden = false;
+    turnShow('straight', '', '', 'A calcular o caminho…');
+    nv.watch = navigator.geolocation.watchPosition(onPosition, err => {
+      if (nv.me) return;   // perdeu o sinal por momentos: continua com a última posição
+      Townly.toast(err.code === 1 ? 'Para ver o caminho, permita o acesso à localização.' : 'Não foi possível obter a sua localização.');
+      stopRoute();
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+    // Mantém o ecrã ligado enquanto segue o caminho (onde o navegador o permitir).
+    if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { nv.wake = w; }).catch(() => {});
+  }
+
+  function stopRoute() {
+    if (nv.watch !== null) navigator.geolocation.clearWatch(nv.watch);
+    if (nv.busy) nv.busy.abort();
+    if (nv.wake) nv.wake.release().catch(() => {});
+    clearRouteLayers();
+    if (nv.acc) { map.removeLayer(nv.acc); nv.acc = null; }
+    Object.assign(nv, { on: false, watch: null, wake: null, path: [], cum: [] });
+    navBox.hidden = true;
+    turnBox.hidden = true;
+    rt.heading = false; compass.setAttribute('aria-pressed', 'false'); setRot(0);
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    root.classList.remove('is-nav');
+  }
+
+  document.getElementById('gm-nav-end').addEventListener('click', stopRoute);
+  navCenter.addEventListener('click', () => {
+    if (nv.arrived) {
+      const it = state.items.find(x => x.id === nv.dest.id);
+      if (it) openSheet(it, false); else location.href = `/incidents/${nv.dest.id}`;
+      return;
+    }
+    nv.follow = true;
+    if (nv.me) map.setView(nv.me, Math.max(map.getZoom(), 17));
+  });
+  navBox.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+    if (nv.mode === b.dataset.mode) return;
+    nv.mode = b.dataset.mode;
+    navBox.querySelectorAll('[data-mode]').forEach(x => { const on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-checked', String(on)); });
+    if (nv.me) fetchRoute(true);
+  }));
+  if (map) map.on('dragstart', () => { if (nv.on) nv.follow = false; });
+  document.addEventListener('visibilitychange', () => {   // ao voltar à app, volta a pedir o ecrã ligado
+    if (!document.hidden && nv.on && navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { nv.wake = w; }).catch(() => {});
+  });
+
+  // ---- Rodar e arrastar o mapa durante o caminho (como no Google Maps), sem sair dos limites do concelho.
+  // Rodar: dois dedos a girar, ou a bússola (Norte em cima ↔ mapa a seguir a direção do caminho).
+  // A rotação é feita no próprio mapa (CSS); enquanto está rodado, o arrastar com um dedo é feito aqui, já corrigido
+  // para o ângulo, e volta sempre a ficar dentro do contorno do concelho (os limites não mudam).
+  const canvas = document.getElementById('live-map');
+  const compass = document.getElementById('gm-nav-compass');
+  const rt = { deg: 0, on: false, heading: false, pts: new Map(), angle: null, twist: 0, drag: null, moved: false };
+  function bearing(a, b) {
+    const y = Math.sin(rad(b[1] - a[1])) * Math.cos(rad(b[0])),
+          x = Math.cos(rad(a[0])) * Math.sin(rad(b[0])) - Math.sin(rad(a[0])) * Math.cos(rad(b[0])) * Math.cos(rad(b[1] - a[1]));
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+  function enterRot() {
+    if (rt.on || !map) return;
+    const W = root.clientWidth, H = root.clientHeight, D = Math.ceil(Math.hypot(W, H));
+    const c = map.getCenter(), z = map.getZoom();
+    Object.assign(canvas.style, { inset: 'auto', width: D + 'px', height: D + 'px', left: (W - D) / 2 + 'px', top: (H - D) / 2 + 'px' });
+    rt.on = true;
+    root.classList.add('is-rot');
+    map.invalidateSize({ animate: false });
+    map.setView(c, z, { animate: false });
+    map.dragging.disable();
+    map.options.touchZoom = 'center';
+    applyBounds();
+  }
+  function exitRot() {
+    if (!rt.on || !map) return;
+    const c = map.getCenter(), z = map.getZoom();
+    Object.assign(canvas.style, { inset: '', width: '', height: '', left: '', top: '', transform: '' });
+    rt.on = false;
+    root.classList.remove('is-rot');
+    map.invalidateSize({ animate: false });
+    map.setView(c, z, { animate: false });
+    applyBounds(); lockAtMin();
+  }
+  function setRot(deg) {
+    rt.deg = ((deg % 360) + 540) % 360 - 180;
+    const tilted = Math.abs(rt.deg) > 0.5;
+    if ((tilted || rt.heading) && !rt.on) enterRot();
+    if (rt.on) canvas.style.transform = `rotate(${rt.deg}deg)`;
+    root.style.setProperty('--tu-rot', rt.deg + 'deg');
+    compass.firstElementChild.style.transform = `rotate(${rt.deg}deg)`;
+    if (!tilted && !rt.heading && rt.on) exitRot();
+  }
+  function setHeadingMode(on) {
+    rt.heading = on;
+    compass.setAttribute('aria-pressed', String(on));
+    compass.title = on ? 'O mapa segue a direção do caminho (tocar: Norte em cima)' : 'Norte em cima (tocar: seguir a direção)';
+    if (on) { nv.follow = true; headingTick(); } else setRot(0);
+  }
+  // Mapa a seguir a direção: o troço do caminho onde a pessoa está fica a apontar para cima.
+  function headingTick() {
+    if (!rt.heading || !nv.me) return;
+    let b = null;
+    if (nv.path.length > 1) { const n = nearest(nv.me); b = bearing(nv.path[n.i], nv.path[n.i + 1] || nv.path[n.i]); }
+    if (b === null || !isFinite(b)) return;
+    setRot(-b);
+  }
+  compass.addEventListener('click', () => {
+    if (rt.heading) setHeadingMode(false);                 // a seguir a direção → Norte em cima
+    else if (Math.abs(rt.deg) > 0.5) setRot(0);            // rodado à mão → Norte em cima
+    else setHeadingMode(true);                             // Norte em cima → seguir a direção
+  });
+
+  // Gestos: dois dedos a girar rodam o mapa; um dedo arrasta (com o mapa rodado, o arrastar é feito aqui).
+  canvas.addEventListener('pointerdown', e => {
+    if (!nv.on) return;
+    rt.pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (rt.pts.size === 2) {
+      const [p, q] = [...rt.pts.values()];
+      rt.angle = Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI; rt.twist = 0; rt.drag = null;
+    } else if (rt.pts.size === 1 && rt.on) { rt.drag = [e.clientX, e.clientY]; rt.moved = false; }
+  }, true);
+  canvas.addEventListener('pointermove', e => {
+    if (!nv.on || !rt.pts.has(e.pointerId)) return;
+    rt.pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (rt.pts.size === 2 && rt.angle !== null) {
+      const [p, q] = [...rt.pts.values()];
+      const a = Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI;
+      let d = a - rt.angle; d = ((d + 540) % 360) - 180;
+      rt.angle = a; rt.twist += d;
+      if (Math.abs(rt.twist) > 12) {                          // só roda depois de um giro claro (não ao fazer zoom)
+        if (rt.heading) setHeadingMode(false);
+        setRot(rt.deg + d);
+      }
+      return;
+    }
+    if (rt.drag && rt.on && rt.pts.size === 1) {
+      const dx = e.clientX - rt.drag[0], dy = e.clientY - rt.drag[1];
+      if (!rt.moved && Math.hypot(dx, dy) < 5) return;
+      rt.moved = true; nv.follow = false;
+      rt.drag = [e.clientX, e.clientY];
+      const r = rad(-rt.deg);   // do ecrã (rodado) para o mapa
+      map.panBy([-(dx * Math.cos(r) - dy * Math.sin(r)), -(dx * Math.sin(r) + dy * Math.cos(r))], { animate: false });
+      if (map.options.maxBounds) map.panInsideBounds(map.options.maxBounds, { animate: false });
+    }
+  }, true);
+  const lift = e => {
+    rt.pts.delete(e.pointerId);
+    if (rt.pts.size < 2) rt.angle = null;
+    if (rt.pts.size === 0) {
+      if (rt.moved) {   // depois de arrastar não abre o pino que estava debaixo do dedo
+        const stop = ev => { ev.stopPropagation(); ev.preventDefault(); };
+        canvas.addEventListener('click', stop, { capture: true, once: true });
+        setTimeout(() => canvas.removeEventListener('click', stop, { capture: true }), 350);
+      }
+      rt.drag = null; rt.moved = false;
+    }
+  };
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => canvas.addEventListener(t, lift, true));
+  window.addEventListener('resize', () => { if (rt.on) { exitRot(); setRot(rt.deg); } });
+
+  // ---- Indicações curva a curva (como no Google Maps): faixa em cima com a próxima manobra e, se ligada, voz em português.
+  const turnBox = document.getElementById('gm-turn');
+  const turnArrow = document.getElementById('gm-turn-arrow');
+  const turnDist = document.getElementById('gm-turn-dist'), turnText = document.getElementById('gm-turn-text');
+  const ANGLE = { straight: 0, 'slight right': 45, right: 90, 'sharp right': 135, uturn: 180, 'sharp left': -135, left: -90, 'slight left': -45 };
+  const VERB = { straight: 'Siga em frente', 'slight right': 'Mantenha-se à direita', right: 'Vire à direita', 'sharp right': 'Vire bem à direita',
+                 uturn: 'Inverta a marcha', 'sharp left': 'Vire bem à esquerda', left: 'Vire à esquerda', 'slight left': 'Mantenha-se à esquerda' };
+  function street(st) { return st.name ? st.name : (st.ref ? st.ref : ''); }
+  function instruction(st) {
+    const road = street(st);
+    if (st.type === 'arrive') return 'Chegue ao destino';
+    if (st.type === 'depart') return road ? `Siga pela ${road}` : 'Siga em frente';
+    if (st.type === 'roundabout' || st.type === 'rotary' || st.type === 'roundabout turn') {
+      return `Na rotunda, saia na ${st.exit || 1}.ª saída` + (road ? ` para a ${road}` : '');
+    }
+    const verb = VERB[st.mod] || 'Siga em frente';
+    if (st.type === 'fork') return (st.mod.includes('left') ? 'Na bifurcação, mantenha-se à esquerda' : 'Na bifurcação, mantenha-se à direita') + (road ? ` para a ${road}` : '');
+    return verb + (road ? ` para a ${road}` : '');
+  }
+  function turnShow(mod, dist, text, sub) {
+    const round = mod === 'roundabout';
+    turnArrow.innerHTML = mod === 'arrive'
+      ? '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>'
+      : round ? '<circle cx="12" cy="10" r="4.5"/><path d="M12 14.5V21M16.2 6.6l2.3-2.3M18.5 8V4.3h-3.7"/>'
+      : '<path d="M12 20V5M6 11l6-6 6 6"/>';
+    turnArrow.style.transform = (mod === 'arrive' || round) ? '' : `rotate(${ANGLE[mod] || 0}deg)`;
+    turnDist.textContent = dist || text;
+    turnText.textContent = dist ? text : (sub || '');
+  }
+  function turnBanner(along, left) {
+    if (nv.straight || !nv.steps.length) {
+      turnShow('straight', fmtDist(left), 'em linha reta até ao destino');
+      return;
+    }
+    // próxima manobra à frente da pessoa (ignora a de partida)
+    const next = nv.steps.find(st => st.type !== 'depart' && st.along > along + 8) || nv.steps[nv.steps.length - 1];
+    const dist = Math.max(0, next.along - along);
+    const mod = next.type === 'arrive' ? 'arrive' : (/roundabout|rotary/.test(next.type) ? 'roundabout' : (next.mod || 'straight'));
+    const text = instruction(next);
+    turnShow(mod, fmtDist(dist), text);
+    const key = next.loc.join(',');
+    if (dist > 60 && !nv.said[key + 'a']) { nv.said[key + 'a'] = 1; say(null, `Daqui a ${fmtDist(dist).replace('km', 'quilómetros').replace(' m', ' metros')}, ${text.charAt(0).toLowerCase() + text.slice(1)}.`); }
+    else if (dist <= 40 && !nv.said[key + 'b'] && next.type !== 'arrive') { nv.said[key + 'b'] = 1; say(null, `Agora, ${text.charAt(0).toLowerCase() + text.slice(1)}.`); }
+  }
+  function say(once, text) {
+    if (!nv.voice || !window.speechSynthesis) return;
+    if (once) { if (nv.said[once]) return; nv.said[once] = 1; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'pt-PT';
+    const v = speechSynthesis.getVoices().find(x => /^pt[-_]PT/i.test(x.lang)) || speechSynthesis.getVoices().find(x => /^pt/i.test(x.lang));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  }
+  const voiceBtn = document.getElementById('gm-nav-voice');
+  if (!window.speechSynthesis) voiceBtn.hidden = true;
+  voiceBtn.addEventListener('click', () => {
+    nv.voice = !nv.voice;
+    voiceBtn.setAttribute('aria-pressed', String(nv.voice));
+    voiceBtn.firstElementChild.className = nv.voice ? 'bi bi-volume-up-fill' : 'bi bi-volume-mute';
+    if (nv.voice) { nv.said = {}; say(null, 'Indicações por voz ligadas.'); } else speechSynthesis.cancel();
+  });
+
+  // Aberto a partir de «Como chegar» na ficha da ocorrência: /mapa?caminho=ID&destino=lat,lng&ref=TU-…&nome=…
+  const routeQ = Q.get('caminho'), destQ = (Q.get('destino') || '').split(',').map(Number);
+  if (/^\d+$/.test(routeQ || '') && destQ.length === 2 && destQ.every(isFinite) && map) {
+    setTimeout(() => startRoute({ id: +routeQ, lat: destQ[0], lng: destQ[1], ticket: Q.get('ref') || 'Ocorrência',
+                                  category: Q.get('nome') || 'Ocorrência', subcategory: '' }), 400);
+  }
+
   // ---------------------------------------------------------------- pesquisa (n.º TU-…, categoria, rua ou lugar)
   const sToggle = document.getElementById('gm-search-toggle');
   const sForm = document.getElementById('gm-search');
@@ -755,7 +1125,7 @@
   // Boas-vindas na 1.ª visita (até a pessoa marcar «Não mostrar novamente»; no máximo uma vez por sessão).
   (function intro() {
     const box = document.getElementById('gm-intro');
-    if (!box || wantOpen) return;
+    if (!box || wantOpen || routeQ) return;
     let skip = false;
     try { skip = localStorage.getItem('tu-map-intro') === 'nunca' || sessionStorage.getItem('tu-map-intro') === '1'; } catch (e) { skip = true; }
     if (skip || state.view === 'lista') return;             // na lista «Todas as ocorrências» não aparece

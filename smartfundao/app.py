@@ -19,6 +19,7 @@ from werkzeug.exceptions import HTTPException
 
 import community as cm
 import geo
+import google_auth
 import mailer
 import reference
 import services as sv
@@ -328,6 +329,62 @@ def register_routes(app):
         return render_template("login.html", error=error, form=request.form,
                                access="entidade" if access == "entidade" else "cidadao")
 
+    # ------------------------------------------------------------ Continuar com o Google (munícipes)
+    def google_redirect_uri():
+        """O endereço de retorno tem de ser EXATAMENTE um dos registados na Google Cloud Console."""
+        fixed = os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+        if fixed:
+            return fixed
+        base = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
+        return (base + url_for("google_callback")) if base else url_for("google_callback", _external=True)
+
+    def google_identity(db):
+        """Conta Google ligada a esta conta (para mostrar no perfil), ou None."""
+        return db.execute("SELECT email FROM user_identities WHERE user_id = ? AND provider = 'google'",
+                          (g.user["id"],)).fetchone()
+
+    @app.get("/entrar/google")
+    def google_login():
+        if g.user:
+            return redirect(home_for(g.user))
+        if not google_auth.configured():
+            flash("O início de sessão com o Google ainda não está configurado neste servidor. Entre com email e palavra-passe.", "info")
+            return redirect(url_for("login"))
+        # A Google só aceita «localhost» (e não 127.0.0.1) como endereço local: muda para lá antes de começar,
+        # para o regresso encontrar a mesma sessão.
+        if request.host.split(":")[0] == "127.0.0.1" and not os.environ.get("GOOGLE_REDIRECT_URI"):
+            return redirect(request.url.replace("://127.0.0.1", "://localhost", 1))
+        state, nonce = google_auth.new_state()
+        target = request.args.get("next")
+        session["google_oauth"] = {"state": state, "nonce": nonce, "next": target if is_safe_next(target) else None}
+        return redirect(google_auth.authorize_url(google_redirect_uri(), state, nonce))
+
+    @app.get("/entrar/google/retorno")
+    def google_callback():
+        pending = session.pop("google_oauth", None) or {}
+        if request.args.get("error"):                       # a pessoa cancelou no ecrã do Google
+            flash("Início de sessão com o Google cancelado.", "info")
+            return redirect(url_for("login"))
+        if not pending or request.args.get("state") != pending.get("state") or not request.args.get("code"):
+            flash("O pedido ao Google expirou. Tente outra vez.", "warning")
+            return redirect(url_for("login"))
+        db = get_db()
+        try:
+            claims = google_auth.exchange_code(request.args["code"], google_redirect_uri(), _ssl_context())
+            info = google_auth.check_claims(claims, pending.get("nonce"))
+            user, created = google_auth.find_or_create_user(db, info, sv.utcnow(), sv.create_user)
+        except google_auth.GoogleError as exc:
+            flash(str(exc), "danger")
+            return redirect(url_for("login"))
+        with db:
+            db.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (sv.utcnow(), user["id"]))
+        login_user(user)
+        if created:   # conta nova: falta confirmar o concelho e a freguesia
+            flash(f"Conta criada com o Google. Bem-vindo, {user['name'].split()[0]}! Confirme o seu concelho.", "success")
+            return redirect(url_for("settings") + "#concelho")
+        flash(f"Sessão iniciada. Olá, {user['name']}!", "success")
+        return redirect(pending.get("next") or home_for(user))
+
     @app.post("/logout")
     @login_required
     def logout():
@@ -456,7 +513,16 @@ def register_routes(app):
     @app.get("/incidents/<int:incident_id>")
     @login_required
     def incident_detail(incident_id):
-        incident = owned_incident_or_403(incident_id)
+        incident = sv.get_incident(get_db(), incident_id)
+        if incident is None:
+            abort(404)
+        if not sv.can_view(g.user, incident):
+            # Ocorrência de outra pessoa (ex.: aberta a partir de um alerta): abre-a no mapa, com a ficha pública
+            # (estado, tipo, fotografia, «Eu também vi»). Os dados privados do autor continuam protegidos (TA06).
+            if cm.is_public(get_db(), incident_id):
+                return redirect(url_for("live_map", ocorrencia=incident_id))
+            flash(f"A ocorrência {incident['ticket']} já foi fechada ({incident['status'].lower()}) e saiu do mapa.", "info")
+            return redirect(url_for("notifications_page"))
         if sv.can_manage(g.user, incident):
             return redirect(url_for("admin_incident", incident_id=incident_id))
         db = get_db()
@@ -620,6 +686,12 @@ def register_routes(app):
     def manifest():
         return send_from_directory(app.static_folder, "manifest.webmanifest",
                                    mimetype="application/manifest+json")
+
+    @app.get("/saude")
+    def health():
+        """Verificação do alojamento (Render): o servidor responde e a base de dados também."""
+        get_db().execute("SELECT 1").fetchone()
+        return jsonify(status="ok")
 
     @app.get("/offline")
     def offline():
@@ -836,7 +908,7 @@ def register_routes(app):
                 return redirect(url_for("account"))
             except sv.ValidationError as exc:
                 errors = exc.errors
-        return render_template("account.html", errors=errors, profile_form={}, has_password=bool(info["has_password"]),
+        return render_template("account.html", errors=errors, profile_form={}, has_password=bool(info["has_password"]), google=google_identity(db),
                                profile=profile_data(db, g.user))
 
     def profile_data(db, user):
@@ -872,7 +944,7 @@ def register_routes(app):
             return redirect(url_for("account"))
         except sv.ValidationError as exc:
             info = db.execute("SELECT has_password FROM users WHERE id = ?", (g.user["id"],)).fetchone()
-            return render_template("account.html", errors=exc.errors, profile_form=request.form,
+            return render_template("account.html", errors=exc.errors, profile_form=request.form, google=google_identity(db),
                                    has_password=bool(info["has_password"]), profile=profile_data(db, g.user)), 400
 
     # ------------------------------------------------------------ Definições e ajuda

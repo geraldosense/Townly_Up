@@ -3,13 +3,15 @@
  * - Sem rede, as páginas mostram /offline em vez de um erro do navegador.
  * - Pedidos POST e a API nunca vêm da cache (dados sempre atuais).
  */
-const VERSION = 'townly-v3';
+const VERSION = 'townly-v4';
 const PRECACHE = [
   '/offline',
   '/static/css/style.css',
   '/static/js/map.js',
   '/static/img/logo.svg',
   '/static/img/icon-192.png',
+  '/static/js/townly.js',
+  '/static/js/install.js',
 ];
 
 self.addEventListener('install', event => {

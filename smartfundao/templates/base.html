@@ -85,6 +85,7 @@
     }
   </script>
   <script src="{{ url_for('static', filename='js/townly.js') }}?v={{ asset_version }}"></script>
+  {% include "_install.html" %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

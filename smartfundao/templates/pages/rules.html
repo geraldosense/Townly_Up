@@ -1,41 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Regras da comunidade{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
+{% set ok = '<svg class="tu-s-ico tu-r-ok" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' %}
+{% set no = '<svg class="tu-s-ico tu-r-no" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>' %}
 {% block content %}
-<article class="tu-prose">
-  <div class="tu-eyebrow">Comunidade</div>
-  <h1>Regras da comunidade</h1>
-  <p class="tu-prose-lede">O Townly Up funciona porque cada pedido é verdadeiro, claro e respeitador. Ao criar conta, aceita estas regras.</p>
+{# Regras da comunidade: curtas, em lista, no mesmo estilo das Definições. #}
+<div class="tu-s tu-r">
+  <header class="tu-s-head">
+    <p>Comunidade</p>
+    <h1>Regras da comunidade</h1>
+  </header>
+  <p class="tu-r-lede">Ao criar conta, aceita estas regras. Servem para que cada pedido seja verdadeiro, útil e respeitador.</p>
 
-  <h2>O que publicar</h2>
-  <ul>
-    <li>Problemas reais no espaço público do concelho: vias e passeios, iluminação, limpeza e resíduos, espaços verdes, sinalização, água e saneamento, mobiliário urbano.</li>
-    <li>Fotografias tiradas por si, que mostrem o problema e o local.</li>
-    <li>Descrições objetivas: o que vê, onde, e há quanto tempo, se souber.</li>
-  </ul>
+  <section>
+    <h2 class="tu-s-sec">Pode publicar</h2>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static">{{ ok|safe }}<span><b>Problemas reais no espaço público</b><small>Vias, iluminação, limpeza, espaços verdes, sinalização, água, mobiliário urbano.</small></span></div>
+      <div class="tu-s-row is-static">{{ ok|safe }}<span><b>Fotografias tiradas por si</b><small>Que mostrem o problema e o local.</small></span></div>
+      <div class="tu-s-row is-static">{{ ok|safe }}<span><b>Descrições objetivas</b><small>O que vê, onde e há quanto tempo.</small></span></div>
+    </div>
+  </section>
 
-  <h2>O que não publicar</h2>
-  <ul>
-    <li>Fotografias que identifiquem pessoas, crianças ou matrículas.</li>
-    <li>Conteúdo sexual, violento, ofensivo ou discriminatório.</li>
-    <li>Queixas sobre pessoas concretas, vizinhos ou funcionários — o serviço é sobre o espaço público.</li>
-    <li>Publicidade, pedidos repetidos de propósito ou informação falsa.</li>
-    <li>Situações de emergência — nesses casos ligue <b>112</b>.</li>
-  </ul>
+  <section>
+    <h2 class="tu-s-sec">Não publique</h2>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static">{{ no|safe }}<span><b>Pessoas ou matrículas</b><small>Fotografias que identifiquem alguém.</small></span></div>
+      <div class="tu-s-row is-static">{{ no|safe }}<span><b>Conteúdo ofensivo</b><small>Sexual, violento, insultuoso ou discriminatório.</small></span></div>
+      <div class="tu-s-row is-static">{{ no|safe }}<span><b>Queixas sobre pessoas</b><small>Vizinhos ou funcionários. O serviço é sobre o espaço público.</small></span></div>
+      <div class="tu-s-row is-static">{{ no|safe }}<span><b>Publicidade ou informação falsa</b><small>Nem pedidos repetidos de propósito.</small></span></div>
+    </div>
+  </section>
 
-  <h2 id="seguranca">Moderação e segurança</h2>
-  <p>Os pedidos são revistos pelas entidades responsáveis, que podem rejeitá-los com uma explicação. Além disso, a plataforma verifica automaticamente o que é enviado:</p>
-  <ul>
-    <li><b>Linguagem:</b> palavrões e insultos no título, na descrição ou nas avaliações bloqueiam o envio.</li>
-    <li><b>Imagens:</b> fotografias impróprias (sexuais, violentas, de ódio) ou sem relação com o problema são recusadas.</li>
-  </ul>
-  <div class="tu-rule-box">
-    <p class="mb-1"><b>1.º ato</b> — o conteúdo não é publicado e a conta recebe um <b>aviso formal</b>, que fica registado.</p>
-    <p class="mb-0"><b>2.º ato</b> — a conta é <b>banida automaticamente</b>. A Câmara Municipal vê o registo e pode rever a decisão se tiver havido engano.</p>
-  </div>
+  <section id="seguranca">
+    <h2 class="tu-s-sec">Se uma regra não for cumprida</h2>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static"><em class="tu-r-step">1</em><span><b>Aviso formal</b><small>O conteúdo não é publicado e o aviso fica registado na conta.</small></span></div>
+      <div class="tu-s-row is-static"><em class="tu-r-step is-alert">2</em><span><b>Conta banida</b><small>Automaticamente. A equipa da plataforma pode rever a decisão se houver engano.</small></span></div>
+    </div>
+    <p class="tu-s-hint">Linguagem imprópria e fotografias sem relação com o problema são detetadas automaticamente. As entidades podem ainda rejeitar um pedido, com explicação.</p>
+  </section>
 
-  <h2>Respeito</h2>
-  <p>Do outro lado estão técnicos e voluntários que tratam muitos pedidos. Uma descrição clara ajuda mais do que um tom zangado.</p>
+  <section>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static"><svg class="tu-s-ico tu-r-no" {{ ico|safe }}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+        <span><b>Emergências: ligue 112</b><small>O Townly Up não serve para situações urgentes.</small></span></div>
+    </div>
+  </section>
 
-  <p class="small text-muted mt-4 tu-page-foot">Ver também: <a href="{{ url_for('privacy') }}">Privacidade e dados</a> · <a href="{{ url_for('how_it_works') }}">Como funciona</a></p>
-</article>
+  <p class="tu-s-hint"><a href="{{ url_for('privacy') }}">Privacidade e dados</a> · <a href="{{ url_for('how_it_works') }}">Como funciona</a></p>
+</div>
 {% endblock %}

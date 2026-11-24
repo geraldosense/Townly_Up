@@ -102,3 +102,20 @@ def test_apagada_desaparece_dos_alertas(client, app):
     incident_id = create_incident(client)
     client.post(f"/incidents/{incident_id}/apagar")
     assert feed(app, "carlos@teste.pt") == []
+
+
+def test_alerta_de_ocorrencia_de_outra_pessoa_abre_no_mapa(client, app):
+    """Clicar num alerta de uma ocorrência de outra pessoa leva à ficha pública no mapa, não a um erro 403."""
+    login(client, "ana@teste.pt")
+    incident_id = create_incident(client)
+    client.post("/logout")
+    login(client, "carlos@teste.pt")
+    resp = client.get(f"/incidents/{incident_id}")
+    assert resp.status_code == 302 and resp.headers["Location"].endswith(f"/mapa?ocorrencia={incident_id}")
+    with app.app_context():
+        db = get_db()
+        with db:
+            db.execute("UPDATE incidents SET status = 'Rejeitada' WHERE id = ?", (incident_id,))
+    resp = client.get(f"/incidents/{incident_id}", follow_redirects=True)
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 200 and "já foi fechada" in html and "Alertas" in html

@@ -105,6 +105,30 @@
     <ol class="tu-glist-items" id="gm-list-items"></ol>
   </section>
 
+  {# ---------------- caminho até à ocorrência, em tempo real, dentro da app #}
+  <div class="tu-gturn" id="gm-turn" hidden aria-live="polite">
+    <span class="tu-gturn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" id="gm-turn-arrow"><path d="M12 20V5M6 11l6-6 6 6"/></svg></span>
+    <div class="tu-gturn-txt"><b id="gm-turn-dist">—</b><span id="gm-turn-text">A calcular o caminho…</span></div>
+  </div>
+  <div class="tu-gnav" id="gm-nav" hidden role="region" aria-label="Caminho até à ocorrência">
+    <div class="tu-gnav-top">
+      <span class="tu-gnav-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 20.2 12 16.4l7.5 3.8z"/></svg></span>
+      <div class="tu-gnav-txt"><b id="gm-nav-main">A calcular…</b><small id="gm-nav-sub">A obter a sua localização</small></div>
+      <button type="button" class="tu-gnav-end" id="gm-nav-end">Terminar</button>
+    </div>
+    <div class="tu-gnav-row">
+      <div class="tu-gnav-modes" role="radiogroup" aria-label="Como vai">
+        <button type="button" role="radio" aria-checked="true" class="is-on" data-mode="foot">A pé</button>
+        <button type="button" role="radio" aria-checked="false" data-mode="car">De carro</button>
+      </div>
+      <div class="tu-gnav-tools">
+        <button type="button" class="tu-gnav-voice tu-gnav-compass" id="gm-nav-compass" aria-pressed="false" title="Orientação do mapa"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="n" d="M12 3 15 12H9z"/><path class="s" d="M12 21 9 12h6z"/></svg><span class="visually-hidden">Orientação do mapa</span></button>
+        <button type="button" class="tu-gnav-voice" id="gm-nav-voice" aria-pressed="false" title="Indicações por voz"><i class="bi bi-volume-mute"></i><span class="visually-hidden">Voz</span></button>
+        <button type="button" class="tu-gnav-center" id="gm-nav-center">Centrar</button>
+      </div>
+    </div>
+  </div>
+
   {# ---------------- detalhe de uma ocorrência (folha que sobe de baixo) #}
   <div class="tu-gsheet" id="gm-sheet" hidden>
     <div class="tu-gsheet-backdrop" data-sheet-close></div>

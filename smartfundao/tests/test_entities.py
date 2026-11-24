@@ -84,7 +84,7 @@ def test_tecnico_so_trata_o_que_e_da_sua_entidade(client, app):
     for other in ("luz@teste.pt", "alpedrinha@teste.pt"):  # outras entidades: não
         login(client, other)
         assert client.get(f"/admin/incidents/{incident_id}").status_code == 403
-        assert client.get(f"/incidents/{incident_id}").status_code == 403
+        assert "/mapa?ocorrencia=" in client.get(f"/incidents/{incident_id}").headers.get("Location", "")
         assert update(client, incident_id, "Em tratamento").status_code == 403
         client.post("/logout")
     assert incident_row(app, incident_id)["status"] == "Em análise"

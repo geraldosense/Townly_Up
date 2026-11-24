@@ -38,13 +38,11 @@
 
 <div class="tu-card mb-3"><div class="card-body p-2">
   <div class="tu-map tu-map-sm" data-map="view" data-lat="{{ incident.latitude }}" data-lng="{{ incident.longitude }}"></div>
-  {# GPS: ligações oficiais do Google Maps (abrem a app no telemóvel, sem chave de API) #}
+  {# Como chegar: caminho em tempo real dentro da aplicação (mapa do Townly Up), sem abrir outras apps #}
   <div class="d-flex flex-wrap gap-2 p-2">
-    <a class="btn btn-primary flex-fill tu-gmaps-btn" target="_blank" rel="noopener"
-       href="https://www.google.com/maps/dir/?api=1&amp;destination={{ incident.latitude }},{{ incident.longitude }}&amp;travelmode=driving">
-      <i class="bi bi-sign-turn-right-fill"></i> Como chegar (GPS)</a>
-    <a class="btn btn-outline-primary" target="_blank" rel="noopener"
-       href="https://www.google.com/maps/search/?api=1&amp;query={{ incident.latitude }},{{ incident.longitude }}">
-      <i class="bi bi-google"></i> Ver no Google Maps</a>
+    <a class="btn btn-primary flex-fill tu-gmaps-btn"
+       href="{{ url_for('live_map', caminho=incident.id, destino=incident.latitude ~ ',' ~ incident.longitude, ref=incident.ticket, nome=incident.subcategory if incident.subcategory and incident.subcategory != 'Outro' else incident.category) }}">
+      <i class="bi bi-sign-turn-right-fill"></i> Como chegar</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('live_map', ocorrencia=incident.id) }}"><i class="bi bi-map"></i> Ver no mapa</a>
   </div>
 </div></div>

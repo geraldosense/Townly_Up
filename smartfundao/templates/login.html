@@ -36,6 +36,7 @@
         (Painel › Contas das entidades). Esqueceu-se da palavra-passe? Peça-a à Câmara.</p>
     {% else %}
       <div class="tu-auth-or"><span>ou</span></div>
+      {% include "_google_button.html" %}
       <a class="tu-guest-btn" href="{{ url_for('live_map') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>
         <span>Entrar como convidado</span>

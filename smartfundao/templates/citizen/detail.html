@@ -1,69 +1,113 @@
 {% extends "base.html" %}
-{% from "_macros.html" import timeline %}
+{% from "_macros.html" import timeline, status_badge, gallery %}
 {% block title %}{{ incident.ticket }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
 {% block content %}
-<a class="small text-decoration-none fw-semibold" href="{{ url_for('citizen_dashboard', view='ativas' if incident.status in ['Registada', 'Em análise', 'Em tratamento'] else 'arquivo') }}"><i class="bi bi-arrow-left"></i> As minhas ocorrências</a>
-<div class="row g-4 mt-1">
-  <div class="col-lg-7">{% include "_incident_info.html" %}</div>
-  <div class="col-lg-5">
-    <div class="tu-card"><div class="card-body">
-      <h2 class="tu-section"><i class="bi bi-clock-history"></i> Linha temporal</h2>
-      {{ timeline(history) }}
-    </div></div>
+{# A minha ocorrência: o mesmo desenho da ficha da Câmara (cabeçalho, fotografia, detalhes em lista, mapa e histórico). #}
+<div class="tu-s tu-ad">
+  <a class="tu-ad-back" href="{{ url_for('citizen_dashboard', view='ativas' if incident.status in ['Registada', 'Em análise', 'Em tratamento'] else 'arquivo') }}"><svg {{ ico|safe }}><path d="m15 6-6 6 6 6"/></svg>As minhas ocorrências</a>
 
-    {# Avaliação da resolução: fecha o ciclo — se o problema continua, a ocorrência é reaberta #}
-    {% if can_rate %}
-    <div class="tu-card tu-rate mt-3" id="avaliar"><div class="card-body">
-      {% if rating %}
-        <h2 class="tu-section mb-2">A sua avaliação</h2>
-        <div class="tu-stars is-static" aria-label="{{ rating.stars }} de 5 estrelas">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= rating.stars }}">★</span>{% endfor %}</div>
-        {% if rating.comment %}<p class="small text-muted mb-0 mt-2">«{{ rating.comment }}»</p>{% endif %}
-      {% else %}
-        <h2 class="tu-section mb-1">Ficou bem resolvido?</h2>
-        <p class="small text-muted">A sua opinião ajuda a Câmara a medir a qualidade das intervenções.</p>
-        <form method="post" action="{{ url_for('rate_incident', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="tu-stars" role="radiogroup" aria-label="Avaliação de 1 a 5 estrelas">
-            {% for n in range(5, 0, -1) %}
-              <input type="radio" name="stars" value="{{ n }}" id="star-{{ n }}" required><label for="star-{{ n }}" title="{{ n }} estrela{{ 's' if n > 1 }}">★</label>
-            {% endfor %}
-          </div>
-          <textarea class="form-control mt-3" name="comment" rows="2" maxlength="500" placeholder="Comentário (opcional)"></textarea>
-          <label class="tu-reopen mt-3">
-            <input class="form-check-input" type="checkbox" name="reopen" value="1">
-            <span><b>O problema continua</b><small>A ocorrência volta a «Em tratamento» e a entidade é avisada. Diga no comentário o que falta.</small></span>
-          </label>
-          <button class="btn btn-primary w-100 mt-3" type="submit">Enviar avaliação</button>
-        </form>
-      {% endif %}
-    </div></div>
+  <header class="tu-ad-head">
+    <p>{{ incident.category }}{% if incident.subcategory %} › {{ incident.subcategory }}{% endif %}</p>
+    <h1>{{ incident.title }}</h1>
+    <div class="tu-ad-meta"><b>{{ incident.ticket }}</b>{{ status_badge(incident.status) }}</div>
+    <p class="tu-ad-state">{{ STATUS_DESCRIPTIONS[incident.status] }}</p>
+  </header>
+
+  {{ gallery(images, 'report', main=true) }}
+
+  {% if incident.status == 'Resolvida' %}
+  <section>
+    <h2 class="tu-s-sec">Resolvida em {{ incident.resolved_at|local }}</h2>
+    <div class="tu-s-list"><div class="tu-s-row is-static"><span>{{ incident.resolution_note }}</span></div></div>
+    {{ gallery(images, 'resolution') }}
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- Avaliação (fecha o ciclo) #}
+  {% if can_rate %}
+  <section id="avaliar">
+    {% if rating %}
+      <h2 class="tu-s-sec">A sua avaliação</h2>
+      <div class="tu-s-list"><div class="tu-s-row is-static"><span>
+        <span class="tu-stars is-static" aria-label="{{ rating.stars }} de 5 estrelas">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= rating.stars }}">★</span>{% endfor %}</span>
+        {% if rating.comment %}<small>«{{ rating.comment }}»</small>{% endif %}</span></div></div>
+    {% else %}
+      <h2 class="tu-s-sec">Ficou bem resolvido?</h2>
+      <form class="tu-ad-form tu-rate" method="post" action="{{ url_for('rate_incident', incident_id=incident.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p class="tu-ad-help mt-0">A sua opinião ajuda a Câmara a medir a qualidade das intervenções.</p>
+        <div class="tu-stars" role="radiogroup" aria-label="Avaliação de 1 a 5 estrelas">
+          {% for n in range(5, 0, -1) %}
+            <input type="radio" name="stars" value="{{ n }}" id="star-{{ n }}" required><label for="star-{{ n }}" title="{{ n }} estrela{{ 's' if n > 1 }}">★</label>
+          {% endfor %}
+        </div>
+        <textarea class="tu-ad-input mt-3" name="comment" rows="2" maxlength="500" placeholder="Comentário (opcional)"></textarea>
+        <label class="tu-ni-confirm mt-3" for="reopen">
+          <input type="checkbox" id="reopen" name="reopen" value="1">
+          <span class="tu-ni-box" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 12.5 4 4L18 8.5"/></svg></span>
+          <span><b>O problema continua</b><small>A ocorrência volta a «Em tratamento» e a entidade é avisada. Diga no comentário o que falta.</small></span>
+        </label>
+        <button class="btn btn-primary btn-lg w-100 mt-3 tu-ad-save" type="submit">Enviar avaliação</button>
+      </form>
     {% endif %}
+  </section>
+  {% endif %}
 
-    {# Apagar: só o autor e só enquanto a entidade ainda não começou a tratar #}
-    <div class="tu-danger-zone mt-3">
+  {# ---------------------------------------------------------------- Detalhes #}
+  <section>
+    <h2 class="tu-s-sec">Detalhes</h2>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static tu-ad-desc"><span><small>Descrição</small>{{ incident.description }}</span></div>
+      <div class="tu-s-row is-static"><span><small>Comunicada em</small>{{ incident.created_at|local }}</span></div>
+      {% if incident.address or incident.parish %}
+      <div class="tu-s-row is-static"><span><small>Local</small>{{ incident.address or incident.parish }}{% if incident.address and incident.parish %}<small class="tu-ad-sub">{{ incident.parish }}</small>{% endif %}</span></div>
+      {% endif %}
+      {% if incident.organization %}<div class="tu-s-row is-static"><span><small>Quem está a tratar</small>{{ incident.organization }}</span></div>{% endif %}
+      {% if counts and (counts.seen or counts.fixed) %}
+      <div class="tu-s-row is-static"><span><small>Comunidade</small>{% if counts.seen %}{{ counts.seen + 1 }} munícipes viram este problema{% endif %}{% if counts.seen and counts.fixed %} · {% endif %}{% if counts.fixed %}{{ counts.fixed }} dizem que já está resolvido{% endif %}</span></div>
+      {% endif %}
+    </div>
+    <div class="tu-ad-map">
+      <div class="tu-map tu-map-sm" data-map="view" data-lat="{{ incident.latitude }}" data-lng="{{ incident.longitude }}"></div>
+      <div class="tu-ad-map-actions">
+        <a class="tu-a-btn is-primary" href="{{ url_for('live_map', caminho=incident.id, destino=incident.latitude ~ ',' ~ incident.longitude, ref=incident.ticket, nome=incident.subcategory if incident.subcategory and incident.subcategory != 'Outro' else incident.category) }}">Como chegar</a>
+        <a class="tu-a-btn" href="{{ url_for('live_map', ocorrencia=incident.id) }}">Ver no mapa</a>
+      </div>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- Histórico #}
+  <section>
+    <h2 class="tu-s-sec">Linha temporal</h2>
+    <div class="tu-s-list tu-ad-history">{{ timeline(history) }}</div>
+  </section>
+
+  {# ---------------------------------------------------------------- Apagar (só o autor, antes de começar a ser tratada) #}
+  <section>
+    <div class="tu-s-list">
       {% if can_delete %}
-        <details>
-          <summary>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            Apagar esta ocorrência
+        <details class="tu-s-danger tu-ad-delete">
+          <summary class="tu-s-row">
+            <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
+            <span><b>Apagar esta ocorrência</b><small>Só enquanto a entidade ainda não começou a tratar.</small></span>
+            <svg class="tu-s-chev" {{ ico|safe }}><path d="m9 6 6 6-6 6"/></svg>
           </summary>
-          <div class="tu-danger-body">
+          <div class="tu-s-form">
             <p>Vai apagar <b>{{ incident.ticket }}</b>. Deixa de aparecer no mapa, na sua lista e para a entidade; as fotografias são eliminadas e os pontos desta ocorrência são retirados. <b>Não é possível desfazer.</b></p>
             <form method="post" action="{{ url_for('delete_incident', incident_id=incident.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-danger btn-sm" type="submit">Sim, apagar definitivamente</button>
-                <button class="btn btn-link btn-sm" type="button" onclick="this.closest('details').open = false">Cancelar</button>
-              </div>
+              <button class="tu-s-btn is-danger" type="submit">Sim, apagar definitivamente</button>
             </form>
           </div>
         </details>
       {% else %}
-        <p class="tu-danger-note">{{ 'Esta ocorrência já está a ser tratada pela entidade, por isso não pode ser apagada.' if incident.status == 'Em tratamento' else 'Esta ocorrência está encerrada e fica no histórico do concelho.' }}</p>
+        <div class="tu-s-row is-static"><svg class="tu-s-ico" {{ ico|safe }}><path d="M12 3.5 5 6.5v5c0 4.2 3 7.8 7 9 4-1.2 7-4.8 7-9v-5z"/></svg>
+          <span><small class="m-0">{{ 'Esta ocorrência já está a ser tratada pela entidade, por isso não pode ser apagada.' if incident.status == 'Em tratamento' else 'Esta ocorrência está encerrada e fica no histórico do concelho.' }}</small></span></div>
       {% endif %}
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}
 {% block scripts %}

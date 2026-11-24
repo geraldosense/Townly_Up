@@ -3,18 +3,72 @@
 {% block title %}Definições{% endblock %}
 {% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
 {% block content %}
-{# Definições no mesmo estilo do menu: secções com título cinzento e linhas com ícone, nome e valor/seta. #}
+{# Definições como nas apps do telemóvel: uma lista principal (grupos com ícone, nome e valor à direita) e cada opção
+   abre o seu próprio ecrã (com «‹» e título ao centro). Sem JavaScript, os ecrãs aparecem todos por baixo da lista. #}
 {% set chev = '<svg class="tu-s-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' %}
 {% set check = '<svg class="tu-s-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' %}
-<div class="tu-s">
-  <header class="tu-s-head">
-    <p>{{ g.user.name if g.user else 'Neste aparelho' }}</p>
-    <h1>Definições</h1>
-  </header>
+{% set citizen = g.user and g.user.role == 'citizen' %}
+<div class="tu-s tu-st" id="tu-settings">
 
-  {% if g.user and g.user.role == 'citizen' %}
-  {# ================================================================ Concelho #}
-  <section id="concelho">
+  {# ================================================================ Lista principal #}
+  <div class="tu-st-hub" id="st-hub">
+    <h1 class="tu-st-title">Definições</h1>
+
+    {% if g.user %}
+    <h2 class="tu-st-sec">Conta</h2>
+    <div class="tu-st-group">
+      <a class="tu-st-row" href="{{ url_for('account') }}"><i class="bi bi-person-fill"></i><span>Conta</span><em>{{ g.user.name.split()[0] }}</em>{{ chev|safe }}</a>
+      <a class="tu-st-row" href="{{ url_for('account') }}#palavra-passe"><i class="bi bi-shield-fill"></i><span>Segurança e palavra-passe</span>{{ chev|safe }}</a>
+      {% if citizen %}<a class="tu-st-row" href="#concelho" data-panel="concelho"><i class="bi bi-geo-alt-fill"></i><span>O meu concelho</span><em>{{ g.user.municipality or '—' }}</em>{{ chev|safe }}</a>{% endif %}
+    </div>
+    {% endif %}
+
+    <h2 class="tu-st-sec">Preferências</h2>
+    <div class="tu-st-group">
+      <a class="tu-st-row" href="#notificacoes" data-panel="notificacoes"><i class="bi bi-bell-fill"></i><span>Notificações</span>
+        {% if g.user and g.user.role == 'citizen' %}<em>{{ 'Todo o concelho' if scope == 'all' else 'Freguesias' }}</em>{% elif g.user and g.user.role == 'staff' %}<em>{{ 'SMS ligadas' if g.user.sms_alerts else 'SMS desligadas' }}</em>{% endif %}{{ chev|safe }}</a>
+      <a class="tu-st-row" href="#aparencia" data-panel="aparencia"><i class="bi bi-moon-fill"></i><span>Tema</span><em id="st-theme-value">Claro</em>{{ chev|safe }}</a>
+      <a class="tu-st-row" href="#" data-install hidden><i class="bi bi-phone-fill"></i><span>Instalar a app</span><em>Ecrã inicial</em>{{ chev|safe }}</a>
+      <button type="button" class="tu-st-row" data-lang-open aria-haspopup="dialog"><i class="bi bi-translate"></i><span>Idioma</span><em>Português</em>{{ chev|safe }}</button>
+    </div>
+
+    <h2 class="tu-st-sec">Privacidade</h2>
+    <div class="tu-st-group">
+      <a class="tu-st-row" href="{{ url_for('privacy') }}"><i class="bi bi-lock-fill"></i><span>Centro de privacidade</span>{{ chev|safe }}</a>
+      {% if g.user %}
+      <a class="tu-st-row" href="{{ url_for('settings_export') }}" download><i class="bi bi-cloud-arrow-down-fill"></i><span>Descarregar os meus dados</span>{{ chev|safe }}</a>
+      {% if citizen %}<a class="tu-st-row" href="#apagar" data-panel="apagar"><i class="bi bi-trash3-fill"></i><span>Apagar a conta</span>{{ chev|safe }}</a>{% endif %}
+      {% else %}
+      <a class="tu-st-row" href="{{ url_for('login', next=url_for('settings')) }}"><i class="bi bi-person-fill"></i><span>Entre para gerir a sua conta</span>{{ chev|safe }}</a>
+      {% endif %}
+    </div>
+
+    <h2 class="tu-st-sec">Apoio e sobre</h2>
+    <div class="tu-st-group">
+      <a class="tu-st-row" href="{{ url_for('help_page') }}"><i class="bi bi-headset"></i><span>Centro de ajuda</span>{{ chev|safe }}</a>
+      <a class="tu-st-row" href="{{ url_for('how_it_works') }}"><i class="bi bi-info-circle-fill"></i><span>Como funciona</span>{{ chev|safe }}</a>
+      <a class="tu-st-row" href="{{ url_for('rules') }}"><i class="bi bi-file-text-fill"></i><span>Regras da comunidade</span>{{ chev|safe }}</a>
+    </div>
+
+    <h2 class="tu-st-sec">Início de sessão</h2>
+    <div class="tu-st-group">
+      {% if g.user %}
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="tu-st-row tu-logout"><i class="bi bi-box-arrow-left"></i><span>Terminar sessão</span></button>
+      </form>
+      {% else %}
+      <a class="tu-st-row" href="{{ url_for('login') }}"><i class="bi bi-box-arrow-in-right"></i><span>Entrar</span>{{ chev|safe }}</a>
+      <a class="tu-st-row" href="{{ url_for('register') }}"><i class="bi bi-person-plus-fill"></i><span>Criar conta</span>{{ chev|safe }}</a>
+      {% endif %}
+    </div>
+
+    <p class="tu-st-version">Townly Up · versão {{ app_version }}</p>
+  </div>
+
+  {# ================================================================ Ecrãs de cada opção #}
+  {% if citizen %}
+  <section class="tu-st-panel" id="concelho" data-title="O meu concelho">
     <h2 class="tu-s-sec">O meu concelho</h2>
     <form method="post" action="{{ url_for('change_territory') }}" class="tu-s-list" id="territory-pick" data-active='{{ territory.active|tojson }}'>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -56,8 +110,7 @@
   </section>
   {% endif %}
 
-  {# ================================================================ Notificações #}
-  <section id="notificacoes">
+  <section class="tu-st-panel" id="notificacoes" data-title="Notificações">
     <h2 class="tu-s-sec">Notificações</h2>
     {% if not g.user %}
       <div class="tu-s-list">
@@ -114,8 +167,7 @@
     {% endif %}
   </section>
 
-  {# ================================================================ Tema #}
-  <section id="aparencia">
+  <section class="tu-st-panel" id="aparencia" data-title="Tema">
     <h2 class="tu-s-sec">Tema</h2>
     <div class="tu-s-list" role="radiogroup" aria-label="Tema">
       <label class="tu-s-row tu-s-radio">
@@ -132,31 +184,11 @@
     <p class="tu-s-hint">Guardado neste aparelho.</p>
   </section>
 
-  {# ================================================================ Privacidade #}
-  <section id="privacidade">
-    <h2 class="tu-s-sec">Privacidade da conta</h2>
-    <div class="tu-s-list">
-      <a class="tu-s-row" href="{{ url_for('privacy') }}">
-        <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 3.5 5 6.5v5c0 4.2 3 7.8 7 9 4-1.2 7-4.8 7-9v-5z"/><path d="m9 12 2 2 4-4"/></svg>
-        <span><b>Política de privacidade</b></span>{{ chev|safe }}
-      </a>
-      {% if not g.user %}
-        <a class="tu-s-row" href="{{ url_for('login', next=url_for('settings')) }}">
-          <svg class="tu-s-ico" {{ ico|safe }}><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c.9-3.9 3.8-6 7.5-6s6.6 2.1 7.5 6"/></svg>
-          <span><b>Entre para gerir a sua conta</b><small>Descarregar os seus dados ou apagar a conta.</small></span>{{ chev|safe }}
-        </a>
-      {% else %}
-        <a class="tu-s-row" href="{{ url_for('settings_export') }}" download>
-          <svg class="tu-s-ico" {{ ico|safe }}><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
-          <span><b>Descarregar os meus dados</b></span>{{ chev|safe }}
-        </a>
-        {% if g.user.role == 'citizen' %}
-        <details class="tu-s-danger" {{ 'open' if errors.get('delete_password') or errors.get('delete_confirm') }}>
-          <summary class="tu-s-row">
-            <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
-            <span><b>Apagar a minha conta</b><small>Para sempre. As ocorrências ficam no histórico, sem o seu nome.</small></span>{{ chev|safe }}
-          </summary>
-          <form method="post" action="{{ url_for('settings_delete_account') }}" class="tu-s-form" novalidate>
+  {% if citizen %}
+  <section class="tu-st-panel" id="apagar" data-title="Apagar a conta">
+    <h2 class="tu-s-sec">Apagar a conta</h2>
+    <div class="tu-s-list tu-st-danger">
+      <form method="post" action="{{ url_for('settings_delete_account') }}" class="tu-s-form" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <p>O nome, o email, a fotografia, os alertas e as freguesias que acompanha são eliminados. Não é possível recuperar a conta.</p>
             <label class="form-label" for="d-pass">Palavra-passe</label>
@@ -170,18 +202,9 @@
             {{ field_error(errors, 'delete_confirm') }}
             <button class="tu-s-btn is-danger" type="submit">Apagar a conta para sempre</button>
           </form>
-        </details>
-        {% else %}
-        <div class="tu-s-row is-static">
-          <svg class="tu-s-ico" {{ ico|safe }}><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>
-          <span><b>Apagar a conta</b><small>As contas das entidades são geridas pela conta principal da Câmara.</small></span>
-        </div>
-        {% endif %}
-      {% endif %}
     </div>
   </section>
-
-  <p class="tu-s-foot">Townly Up · versão {{ app_version }} · <a href="{{ url_for('help_page') }}">Ajuda e perguntas</a></p>
+  {% endif %}
 </div>
 {% endblock %}
 {% block scripts %}
@@ -202,6 +225,41 @@
         window.tuApplyPrefs && window.tuApplyPrefs();
       });
     });
+  })();
+</script>
+<script>
+  // Cada opção abre o seu ecrã (#concelho, #notificacoes, #aparencia, #apagar); «‹» ou o botão «voltar» regressa à lista.
+  (function () {
+    const root = document.getElementById('tu-settings'), hub = document.getElementById('st-hub');
+    const panels = [...root.querySelectorAll('.tu-st-panel')];
+    root.classList.add('is-js');
+    panels.forEach(p => {
+      const bar = document.createElement('div');
+      bar.className = 'tu-st-bar';
+      bar.innerHTML = '<a class="tu-st-back" href="#" aria-label="Voltar às definições"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a><h1></h1><span></span>';
+      bar.querySelector('h1').textContent = p.dataset.title;
+      bar.querySelector('a').addEventListener('click', e => {
+        e.preventDefault();
+        if (history.length > 1 && sessionStorage.getItem('tu-st-from-hub') === '1') history.back();
+        else { history.replaceState(null, '', location.pathname); show(); }
+      });
+      p.prepend(bar);
+    });
+    root.querySelectorAll('[data-panel]').forEach(a => a.addEventListener('click', () => { try { sessionStorage.setItem('tu-st-from-hub', '1'); } catch (e) {} }));
+    function show() {
+      const id = location.hash.slice(1);
+      const target = panels.find(p => p.id === id);
+      hub.hidden = !!target;
+      panels.forEach(p => { p.hidden = p !== target; });
+      window.scrollTo(0, 0);
+    }
+    window.addEventListener('hashchange', show);
+    show();
+    // valor do tema na lista
+    const tv = document.getElementById('st-theme-value');
+    const sync = () => { tv.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? 'Escuro' : 'Claro'; };
+    sync();
+    document.querySelectorAll('[data-pref="tu-theme"]').forEach(r => r.addEventListener('change', () => setTimeout(sync, 0)));
   })();
 </script>
 {% endblock %}

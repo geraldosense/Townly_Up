@@ -55,13 +55,6 @@ window.Townly = (function () {
     return 2 * r * Math.asin(Math.sqrt(a));
   }
 
-  /* GPS: ligações oficiais do Google Maps (https://developers.google.com/maps/documentation/urls).
-   * No telemóvel abrem a app Google Maps já em modo de navegação. Não precisam de chave de API. */
-  function gmapsDirections(lat, lng) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-  }
-  function gmapsView(lat, lng) { return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`; }
-
   function formatDistance(m) { return m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km'; }
 
   /* Marcador estilo Waze: gota com o ícone da categoria (+ nº de confirmações). */
@@ -73,5 +66,5 @@ window.Townly = (function () {
     });
   }
 
-  return { api, toast, updatePoints, timeAgo, distance, formatDistance, pinIcon, csrf, gmapsDirections, gmapsView };
+  return { api, toast, updatePoints, timeAgo, distance, formatDistance, pinIcon, csrf };
 })();

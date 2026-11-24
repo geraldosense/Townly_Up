@@ -9,7 +9,7 @@ services:
     buildCommand: pip install -r requirements.txt
     # 1) tabelas  2) conta da Câmara  3) servidor (sem dados fictícios)
     startCommand: ./start.sh
-    healthCheckPath: /
+    healthCheckPath: /saude
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
@@ -36,4 +36,8 @@ services:
       - key: PUBLIC_URL          # ex.: https://townly-up.onrender.com (para as ligações nos emails)
         sync: false
       - key: ANTHROPIC_API_KEY   # moderação automática das fotografias (Claude API)
+        sync: false
+      - key: GOOGLE_CLIENT_ID    # «Continuar com o Google» (Google Cloud Console › Clients)
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
         sync: false

@@ -22,7 +22,6 @@
       {% with logo_class = 'tu-logo-light' %}{% include "_logo.html" %}{% endwith %}
       <span class="tu-split-wordmark">Townly <b>Up</b></span>
     </a>
-    <a class="tu-split-back tu-split-back-photo" href="{{ url_for('index') }}">← Voltar ao site</a>
     <div class="tu-split-quote">
       <p class="tu-split-kicker">Concelho do Fundão</p>
       <p class="tu-split-title">Cada rua do concelho tem quem olhe por ela.</p>
@@ -40,9 +39,6 @@
   </div>
 
   <div class="tu-split-form">
-    <div class="tu-split-top">
-      <a class="tu-split-back" href="{{ url_for('index') }}">← Voltar ao site</a>
-    </div>
     {% set ep = request.endpoint %}
     {% set acc = access or 'cidadao' %}
     <section class="tu-split-panel{{ ' is-entidade' if acc == 'entidade' }}">

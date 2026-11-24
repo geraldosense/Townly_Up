@@ -85,6 +85,9 @@
     <p class="tu-auth-greeting" data-greeting="junte-se à comunidade">Junte-se à comunidade</p>
     <h1 class="tu-auth-title">Criar conta de munícipe</h1>
     <p class="tu-auth-lede">Comunique problemas no espaço público e receba os alertas da sua freguesia.</p>
+    {% include "_google_button.html" %}
+    <p class="tu-google-note">Ao continuar com o Google, aceita as <a href="{{ url_for('rules') }}">regras da comunidade</a>.</p>
+    <div class="tu-auth-or"><span>ou com o seu email</span></div>
     <form method="post" novalidate class="tu-auth-form-fields tu-register">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="access" value="cidadao">

@@ -66,8 +66,8 @@
         <span class="tu-d-cat" style="--c: {{ st.color }}" aria-hidden="true"><i class="bi bi-{{ st.icon }}"></i></span>
         <span><b>{{ i.title }}{% if i.priority == 'Alta' %} <em class="tu-d-high">Alta</em>{% endif %}</b>
           <small>{{ i.ticket }} · {{ i.created_at|local('%d/%m/%Y') }}{% if i.seen_count %} · {{ i.seen_count + 1 }} viram{% endif %}</small>
-          {% if i.parish or (g.user.role == 'admin' and i.municipality) %}<small class="tu-d-place">{{ i.parish or i.municipality }}</small>{% endif %}</span>
-        {{ status_badge(i.status) }}
+          {% if i.parish or (g.user.role == 'admin' and i.municipality) %}<small class="tu-d-place">{{ i.parish or i.municipality }}</small>{% endif %}
+          <span class="tu-d-badge">{{ status_badge(i.status) }}</span></span>
         <svg class="tu-s-chev" {{ ico|safe }}><path d="m9 6 6 6-6 6"/></svg>
       </a>
     {% else %}

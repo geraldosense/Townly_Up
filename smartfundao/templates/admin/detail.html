@@ -1,130 +1,180 @@
 {% extends "base.html" %}
-{% from "_macros.html" import timeline, field_error, invalid %}
-{% block title %}{{ incident.ticket }} · Painel{% endblock %}
+{% from "_macros.html" import timeline, field_error, invalid, status_badge, gallery %}
+{% block title %}{{ incident.ticket }} · Ocorrências{% endblock %}
 {% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% set ico = 'viewBox="0 0 24 24" aria-hidden="true"' %}
 {% block content %}
-<a class="small text-decoration-none fw-semibold" href="{{ url_for('admin_dashboard') }}"><i class="bi bi-arrow-left"></i> Painel municipal</a>
-<div class="row g-4 mt-1">
-  <div class="col-lg-7">
-    {% include "_incident_info.html" %}
-    <div class="tu-card"><div class="card-body small">
-      <i class="bi bi-person"></i> Comunicada por <b>{{ incident.author_name }}</b>
-      {% if incident.assigned_name %} · Última atualização por <b>{{ incident.assigned_name }}</b> em {{ incident.updated_at|local }}{% endif %}
-    </div></div>
-    {% if ratings %}
-    <div class="tu-card mt-3"><div class="card-body">
-      <h2 class="tu-section mb-2">Avaliação do munícipe</h2>
-      {% for r in ratings %}
-        <div class="{{ 'mt-3 pt-3 border-top' if not loop.first }}">
-          <div class="tu-stars is-static" aria-label="{{ r.stars }} de 5">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= r.stars }}">★</span>{% endfor %}</div>
-          {% if r.reopened %}<span class="badge text-bg-danger ms-2">Reaberta</span>{% endif %}
-          {% if r.comment %}<p class="small mb-0 mt-1">«{{ r.comment }}»</p>{% endif %}
-          <small class="text-muted">{{ r.created_at|local }}</small>
-        </div>
-      {% endfor %}
-    </div></div>
-    {% endif %}
-  </div>
+{# Ficha de uma ocorrência para a Câmara/entidade (ou para a conta principal): o problema, tratar e o histórico. #}
+<div class="tu-s tu-a tu-ad">
+  <a class="tu-ad-back" href="{{ url_for('admin_dashboard') }}"><svg {{ ico|safe }}><path d="m15 6-6 6 6 6"/></svg>{{ 'Todas as ocorrências' if g.user.role == 'admin' else 'Ocorrências' }}</a>
 
-  <div class="col-lg-5">
-    {% if incident.similar_to %}
-    <div class="small text-muted mb-2"><i class="bi bi-info-circle"></i> O sistema achou esta ocorrência parecida com outra e o munícipe confirmou que é um problema diferente.</div>
-    {% endif %}
-    {% if duplicates %}
-    <div class="tu-dup mb-3">
-      <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Possíveis duplicados</div>
-      {% for d in duplicates %}
-        <div class="small py-1">
-          <div class="d-flex justify-content-between gap-2">
-            <a href="{{ url_for('admin_incident', incident_id=d.id) }}">{{ d.ticket }} · {{ d.category }}</a>
-            <span class="text-nowrap fw-semibold">{{ (d.score * 100)|round|int }}% parecida</span>
-          </div>
-          <div class="text-muted">{{ d.reasons|join(' · ') }} · {{ d.status }}</div>
-        </div>
-      {% endfor %}
-      <div class="small text-muted mt-1">Se for o mesmo problema, marque esta como «Duplicada» e indique o ticket original.</div>
-    </div>
-    {% endif %}
+  <header class="tu-ad-head">
+    <p>{{ incident.category }}{% if incident.subcategory and incident.subcategory != 'Outro' %} · {{ incident.subcategory }}{% endif %}</p>
+    <h1>{{ incident.title }}</h1>
+    <div class="tu-ad-meta"><b>{{ incident.ticket }}</b>{{ status_badge(incident.status) }}
+      {% if incident.priority %}<em class="tu-a-pill {{ 'is-alert' if incident.priority == 'Alta' }}">Prioridade {{ incident.priority|lower }}</em>{% endif %}</div>
+  </header>
 
-    <div class="tu-card mb-3"><div class="card-body">
-      <h2 class="tu-section"><i class="bi bi-pencil-square"></i> Atualizar ocorrência</h2>
-      {% if closed %}
-        <div class="alert alert-secondary mb-0"><i class="bi bi-archive"></i> Ocorrência encerrada ({{ incident.status }}). Fica arquivada e pesquisável — não é apagada.</div>
-      {% else %}
-        <form method="post" action="{{ url_for('admin_update_status', incident_id=incident.id) }}" enctype="multipart/form-data" novalidate>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="mb-2">
-            <label class="form-label small" for="new_status">Estado</label>
-            <select class="form-select{{ invalid(errors, 'new_status') }}" id="new_status" name="new_status">
-              <option value="{{ incident.status }}">{{ incident.status }} (manter — só observação/classificação)</option>
-              {% for s in next_statuses %}
-                <option value="{{ s }}" {{ 'selected' if form.get('new_status') == s or (not form and loop.first) }}>→ {{ s }}</option>
-              {% endfor %}
-            </select>
-            {{ field_error(errors, 'new_status') }}
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col-6">
-              <label class="form-label small" for="priority">Prioridade</label>
-              {% set cur_p = form.get('priority', incident.priority or '') %}
-              <select class="form-select form-select-sm{{ invalid(errors, 'priority') }}" id="priority" name="priority">
-                <option value="">—</option>
-                {% for p in priorities %}<option {{ 'selected' if cur_p == p }}>{{ p }}</option>{% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <label class="form-label small" for="organization_id">Entidade responsável</label>
-              {% if g.user.role == 'admin' %}
-                {% set cur_o = form.get('organization_id', incident.organization_id|string) %}
-                {% set kinds = {'camara': 'Câmara', 'servico': 'Serviços técnicos', 'junta': 'Juntas de Freguesia'} %}
-                <select class="form-select form-select-sm{{ invalid(errors, 'organization_id') }}" id="organization_id" name="organization_id">
-                  {% for kind, label in kinds.items() %}
-                    <optgroup label="{{ label }}">
-                      {% for o in organizations if o.kind == kind %}<option value="{{ o.id }}" {{ 'selected' if cur_o == o.id|string }}>{{ o.name }}</option>{% endfor %}
-                    </optgroup>
-                  {% endfor %}
-                </select>
-              {% else %}
-                <div class="form-control form-control-sm bg-transparent">{{ incident.organization }}</div>
-              {% endif %}
-              {{ field_error(errors, 'organization_id') }}
-            </div>
-          </div>
-          <div class="mb-2">
-            <label class="form-label small" for="note">Observação <span class="text-danger">*</span></label>
-            <textarea class="form-control{{ invalid(errors, 'note') }}" id="note" name="note" rows="3" maxlength="1000" placeholder="Ex.: Equipa deslocada ao local para reparação.">{{ form.get('note', '') }}</textarea>
-            <div class="form-text">Para «Duplicada», indique o ticket original (ex.: TU-2026-0001). Para «Rejeitada», explique o motivo.</div>
-            {{ field_error(errors, 'note') }}
-          </div>
-          <div class="mb-3" id="resolution-box">
-            <label class="form-label small" for="resolution_photo">Fotografia da resolução (opcional, só ao resolver — aparece em «Antes e depois»)</label>
-            <input class="form-control form-control-sm{{ invalid(errors, 'resolution_photo') }}" type="file" id="resolution_photo" name="resolution_photo" accept="image/jpeg,image/png,image/webp">
-            {{ field_error(errors, 'resolution_photo') }}
-          </div>
-          <button class="btn btn-primary w-100" type="submit"><i class="bi bi-save"></i> Guardar alterações</button>
-        </form>
+  {{ gallery(images, 'report', main=true) }}
+
+  {% if incident.similar_to %}<p class="tu-s-hint mt-2">O sistema achou-a parecida com outra; o munícipe confirmou que é um problema diferente.</p>{% endif %}
+  {% if duplicates %}
+  <section class="tu-ad-warn" aria-label="Possíveis duplicados">
+    <h2><svg {{ ico|safe }}><path d="M12 4 2.8 19.5h18.4zM12 10v4.2M12 16.8v.1"/></svg>Possíveis duplicados</h2>
+    {% for d in duplicates %}
+      <a class="tu-ad-dup" href="{{ url_for('admin_incident', incident_id=d.id) }}">
+        <span><b>{{ d.ticket }} · {{ d.category }}</b><small>{{ d.reasons|join(' · ') }} · {{ d.status }}</small></span>
+        <em>{{ (d.score * 100)|round|int }}% parecida</em>
+      </a>
+    {% endfor %}
+    <p>Se for o mesmo problema, marque esta como «Duplicada» e indique o número da original.</p>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- Detalhes #}
+  <section>
+    <h2 class="tu-s-sec">Detalhes</h2>
+    <div class="tu-s-list">
+      <div class="tu-s-row is-static tu-ad-desc"><span><small>Descrição</small>{{ incident.description }}</span></div>
+      <div class="tu-s-row is-static"><span><small>Comunicada por</small>{{ incident.author_name }} · {{ incident.created_at|local }}</span></div>
+      {% if incident.address or incident.parish %}
+      <div class="tu-s-row is-static"><span><small>Local</small>{{ incident.address or incident.parish }}{% if incident.address and incident.parish %}<small class="tu-ad-sub">{{ incident.parish }}</small>{% endif %}</span></div>
       {% endif %}
-    </div></div>
+      <div class="tu-s-row is-static"><span><small>Responsável</small>{{ incident.organization or '—' }}</span></div>
+      {% if counts and (counts.seen or counts.fixed) %}
+      <div class="tu-s-row is-static"><span><small>Comunidade</small>{% if counts.seen %}{{ counts.seen + 1 }} munícipes viram este problema{% endif %}{% if counts.seen and counts.fixed %} · {% endif %}{% if counts.fixed %}{{ counts.fixed }} dizem que já está resolvido{% endif %}</span></div>
+      {% endif %}
+    </div>
+    <div class="tu-ad-map">
+      <div class="tu-map tu-map-sm" data-map="view" data-lat="{{ incident.latitude }}" data-lng="{{ incident.longitude }}"></div>
+      <div class="tu-ad-map-actions">
+        <a class="tu-a-btn is-primary" href="{{ url_for('live_map', caminho=incident.id, destino=incident.latitude ~ ',' ~ incident.longitude, ref=incident.ticket, nome=incident.subcategory if incident.subcategory and incident.subcategory != 'Outro' else incident.category) }}">Como chegar</a>
+        <a class="tu-a-btn" href="{{ url_for('live_map', ocorrencia=incident.id) }}">Ver no mapa</a>
+        <span class="tu-ad-coords">{{ '%.5f'|format(incident.latitude) }}, {{ '%.5f'|format(incident.longitude) }}</span>
+      </div>
+    </div>
+  </section>
 
-    <div class="tu-card"><div class="card-body">
-      <h2 class="tu-section"><i class="bi bi-clock-history"></i> Histórico <span class="badge rounded-pill text-bg-light border fw-semibold">imutável</span></h2>
-      {{ timeline(history) }}
-    </div></div>
-  </div>
+  {% if incident.status == 'Resolvida' %}
+  <section>
+    <h2 class="tu-s-sec">Resolvida em {{ incident.resolved_at|local }}</h2>
+    <div class="tu-s-list"><div class="tu-s-row is-static"><span>{{ incident.resolution_note }}</span></div></div>
+    {{ gallery(images, 'resolution') }}
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- Tratar #}
+  <section id="tratar">
+    <h2 class="tu-s-sec">Atualizar ocorrência</h2>
+    {% if closed %}
+      <div class="tu-s-list"><div class="tu-s-row is-static"><span><b>Ocorrência encerrada ({{ incident.status|lower }})</b><small>Fica arquivada e pesquisável. Não é apagada.</small></span></div></div>
+    {% else %}
+      <form class="tu-ad-form" method="post" action="{{ url_for('admin_update_status', incident_id=incident.id) }}" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if errors %}<div class="tu-ad-errors" role="alert"><svg {{ ico|safe }}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.1"/></svg><span>Não foi possível guardar. Corrija o que está assinalado abaixo.</span></div>{% endif %}
+
+        <p class="tu-ad-label">Novo estado</p>
+        {% set chosen = form.get('new_status') or (next_statuses[0] if next_statuses else incident.status) %}
+        <div class="tu-ad-states{{ ' is-invalid' if errors.get('new_status') }}" role="radiogroup" aria-label="Novo estado">
+          {% for s in next_statuses %}
+            <label class="st-{{ s|slug }}"><input type="radio" name="new_status" value="{{ s }}" {{ 'checked' if chosen == s }}><span>{{ s }}</span></label>
+          {% endfor %}
+          <label class="is-keep"><input type="radio" name="new_status" value="{{ incident.status }}" {{ 'checked' if chosen == incident.status }}><span>Só observação</span></label>
+        </div>
+        {{ field_error(errors, 'new_status') }}
+
+        <label class="tu-ad-label" for="note">Observação para o munícipe</label>
+        <textarea class="tu-ad-input{{ invalid(errors, 'note') }}" id="note" name="note" rows="3" maxlength="1000" placeholder="Ex.: Equipa deslocada ao local para reparação.">{{ form.get('note', '') }}</textarea>
+        {{ field_error(errors, 'note') }}
+        <p class="tu-ad-help" id="note-help">Fica no histórico e o munícipe é avisado.</p>
+
+        <div class="tu-ad-grid">
+          <div>
+            <label class="tu-ad-label" for="priority">Prioridade</label>
+            {% set cur_p = form.get('priority', incident.priority or '') %}
+            <select class="tu-ad-input{{ invalid(errors, 'priority') }}" id="priority" name="priority">
+              <option value="">Sem prioridade</option>
+              {% for p in priorities %}<option {{ 'selected' if cur_p == p }}>{{ p }}</option>{% endfor %}
+            </select>
+            {{ field_error(errors, 'priority') }}
+          </div>
+          <div>
+            <label class="tu-ad-label" for="organization_id">Entidade responsável</label>
+            {% if g.user.role == 'admin' %}
+              {% set cur_o = form.get('organization_id', incident.organization_id|string) %}
+              {% set kinds = {'camara': 'Câmaras Municipais', 'servico': 'Serviços técnicos', 'junta': 'Juntas de Freguesia'} %}
+              <select class="tu-ad-input{{ invalid(errors, 'organization_id') }}" id="organization_id" name="organization_id">
+                {% for kind, label in kinds.items() %}
+                  <optgroup label="{{ label }}">
+                    {% for o in organizations if o.kind == kind %}<option value="{{ o.id }}" {{ 'selected' if cur_o == o.id|string }}>{{ o.name }}</option>{% endfor %}
+                  </optgroup>
+                {% endfor %}
+              </select>
+            {% else %}
+              <div class="tu-ad-input is-static">{{ incident.organization }}</div>
+            {% endif %}
+            {{ field_error(errors, 'organization_id') }}
+          </div>
+        </div>
+
+        <div id="resolution-box">
+          <p class="tu-ad-label">Fotografia da resolução <span>(opcional)</span></p>
+          <label class="tu-ad-file{{ ' is-invalid' if errors.get('resolution_photo') }}" for="resolution_photo">
+            <svg {{ ico|safe }}><path d="M4 7.5h3l1.5-2h7l1.5 2h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg>
+            <span id="resolution-name">Juntar a fotografia do trabalho feito</span>
+            <input type="file" id="resolution_photo" name="resolution_photo" accept="image/jpeg,image/png,image/webp">
+          </label>
+          {{ field_error(errors, 'resolution_photo') }}
+          <p class="tu-ad-help">Aparece em «Antes e depois».</p>
+        </div>
+
+        <button class="btn btn-primary btn-lg w-100 tu-ad-save" type="submit">Guardar</button>
+      </form>
+    {% endif %}
+  </section>
+
+  {% if ratings %}
+  <section>
+    <h2 class="tu-s-sec">Avaliação do munícipe</h2>
+    <div class="tu-s-list">
+      {% for r in ratings %}
+        <div class="tu-s-row is-static"><span>
+          <b><span class="tu-stars is-static" aria-label="{{ r.stars }} de 5">{% for n in range(1, 6) %}<span class="{{ 'on' if n <= r.stars }}">★</span>{% endfor %}</span>
+            {% if r.reopened %}<em class="tu-a-pill is-alert ms-1">Reaberta</em>{% endif %}</b>
+          {% if r.comment %}<span class="d-block mt-1">«{{ r.comment }}»</span>{% endif %}
+          <small>{{ r.created_at|local }}</small></span></div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- Histórico #}
+  <section>
+    <h2 class="tu-s-sec">Histórico <span class="tu-ad-lock">não pode ser alterado</span></h2>
+    <div class="tu-s-list tu-ad-history">{{ timeline(history) }}</div>
+  </section>
 </div>
 {% endblock %}
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{{ url_for('static', filename='js/map.js') }}"></script>
 <script>
-  // Mostra o campo da fotografia de conclusão apenas quando o estado escolhido é «Resolvida».
   (function () {
-    const select = document.getElementById('new_status');
-    const box = document.getElementById('resolution-box');
-    if (!select || !box) return;
-    const sync = () => { box.style.display = select.value === 'Resolvida' ? '' : 'none'; };
-    select.addEventListener('change', sync);
+    const form = document.querySelector('.tu-ad-form');
+    if (!form) return;
+    // A fotografia de conclusão só aparece quando o novo estado é «Resolvida»; a ajuda da observação muda com o estado.
+    const box = document.getElementById('resolution-box'), help = document.getElementById('note-help');
+    const HELP = { 'Rejeitada': 'Explique ao munícipe porque é rejeitada.', 'Duplicada': 'Indique o número da ocorrência original (ex.: TU-2026-0001).',
+                   'Resolvida': 'Diga o que foi feito. Pode juntar uma fotografia.' };
+    const sync = () => {
+      const v = (form.querySelector('input[name="new_status"]:checked') || {}).value;
+      box.hidden = v !== 'Resolvida';
+      help.textContent = HELP[v] || 'Fica no histórico e o munícipe é avisado.';
+    };
+    form.querySelectorAll('input[name="new_status"]').forEach(r => r.addEventListener('change', sync));
     sync();
+    const file = document.getElementById('resolution_photo'), name = document.getElementById('resolution-name');
+    if (file) file.addEventListener('change', () => { name.textContent = file.files[0] ? file.files[0].name : 'Juntar a fotografia do trabalho feito'; });
   })();
 </script>
 {% endblock %}
