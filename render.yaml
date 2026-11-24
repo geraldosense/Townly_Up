@@ -1,0 +1,44 @@
+# Render Blueprint — cria o serviço web do Townly Up (o código está na pasta smartfundao/).
+# A base de dados PostgreSQL vem do Neon (gratuita, não expira): cole o endereço em DATABASE_URL.
+services:
+  - type: web
+    name: townly-up
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: smartfundao
+    buildCommand: pip install -r requirements.txt
+    # 1) tabelas  2) conta principal  3) servidor (sem dados fictícios)
+    startCommand: ./start.sh
+    healthCheckPath: /saude
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADMIN_NAME
+        value: Townly Up
+      - key: ADMIN_EMAIL        # conta principal da plataforma (cria as contas das Câmaras no site)
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATABASE_URL       # endereço do Neon (postgresql://…?sslmode=require)
+        sync: false
+      - key: PUBLIC_URL         # ex.: https://townly-up.onrender.com (ligações nos emails e retorno do Google)
+        sync: false
+      - key: BREVO_API_KEY      # opcional: email com o número de referência (Brevo, gratuito até 300/dia)
+        sync: false
+      - key: MAIL_FROM          # opcional: remetente verificado na Brevo
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Townly Up
+      - key: ANTHROPIC_API_KEY  # opcional: moderação automática das fotografias (Claude API)
+        sync: false
+      - key: GOOGLE_CLIENT_ID   # opcional: «Continuar com o Google»
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

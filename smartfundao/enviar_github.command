@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit 1
 echo "== Townly Up: enviar para o GitHub =="
 ROOT="$(git rev-parse --show-toplevel)"
-git -C "$ROOT" add -A smartfundao
+git -C "$ROOT" add -A smartfundao README.md render.yaml
 if git -C "$ROOT" diff --cached --quiet; then
   echo "(nada de novo para enviar)"
 else

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="static/img/logo.svg" alt="Townly Up" width="132">
+  <img src="smartfundao/static/img/logo.svg" alt="Townly Up" width="132">
 </p>
 
 <h1 align="center">Townly Up</h1>
@@ -13,10 +13,12 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-0b2a5b">
   <img alt="Flask" src="https://img.shields.io/badge/Flask-3-0b2a5b">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-0b2a5b">
-  <img alt="Testes" src="https://img.shields.io/badge/testes-146%20a%20passar-0e9a3e">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-151%20a%20passar-0e9a3e">
   <img alt="PWA" src="https://img.shields.io/badge/PWA-instal%C3%A1vel-0e9a3e">
 </p>
 
+> O código da aplicação está na pasta [`smartfundao/`](smartfundao/).
+>
 > **Prova de Aptidão Profissional (PAP)** · 12.º ano · Curso Profissional de Técnico de Desenvolvimento de Software
 > Tema: *Desenvolvimento de um sistema digital de identificação de problemas urbanos.*
 > Projeto académico, pensado a partir do concelho do Fundão. Não é um serviço oficial de nenhuma Câmara Municipal.
@@ -69,19 +71,25 @@ Capturas reais da aplicação num telemóvel (390 × 844). As ocorrências mostr
 ### Comunicar um problema
 
 <p align="center">
-  <img src="docs/imagens/prototipo-municipe.jpg" alt="Início, comunicar, fotografia e número de referência" width="100%">
+  <img src="smartfundao/docs/imagens/prototipo-municipe.jpg" alt="Início, tipo de problema, fotografia e local, número de referência" width="100%">
 </p>
 
 ### Acompanhar e participar
 
 <p align="center">
-  <img src="docs/imagens/prototipo-acompanhar.jpg" alt="Mapa, estado da ocorrência, menu e perfil" width="100%">
+  <img src="smartfundao/docs/imagens/prototipo-acompanhar.jpg" alt="Mapa, a minha ocorrência, caminho até ao local e alertas" width="100%">
+</p>
+
+### Conta, definições e instalar a app
+
+<p align="center">
+  <img src="smartfundao/docs/imagens/prototipo-app.jpg" alt="Entrar com Google ou email, perfil, definições e instalar a app" width="100%">
 </p>
 
 ### Área da Câmara e da plataforma
 
 <p align="center">
-  <img src="docs/imagens/prototipo-camara.jpg" alt="Câmaras Municipais, todas as ocorrências e estatísticas" width="100%">
+  <img src="smartfundao/docs/imagens/prototipo-camara.jpg" alt="Todas as ocorrências, tratar uma ocorrência, Câmaras Municipais e estatísticas" width="100%">
 </p>
 
 ---
@@ -107,16 +115,20 @@ Capturas reais da aplicação num telemóvel (390 × 844). As ocorrências mostr
 
 | Funcionalidade | Descrição |
 |---|---|
-| **Comunicar em 3 passos** | Categoria e caso concreto → fotografias (até 3) e descrição → local por GPS, com marcador arrastável |
+| **Comunicar em 2 passos** | 1) tipo de problema e caso concreto · 2) fotografia (até 3, câmara da app ou galeria) com uma frase de descrição |
+| **Local registado com a fotografia** | Lido do GPS guardado na fotografia ou da localização do telemóvel no momento; segue a 1.ª fotografia e pode ser acertado no mapa |
 | **Número de referência** | `TU-AAAA-NNNN`, mostrado no ecrã e enviado por email com o resumo e a ligação para acompanhar |
 | **Validação do local** | A ocorrência tem de ficar dentro do concelho da pessoa (limites oficiais) |
 | **Aviso de repetidos** | Antes de enviar, mostra problemas parecidos já comunicados ali perto |
 | **Mapa vivo** | Todas as ocorrências do concelho por cor de estado, camada de freguesias, satélite ou ruas, localização atual e lista «Todas as ocorrências» |
+| **Caminho até ao local** | Dentro da app, em tempo real: a pé ou de carro, indicações curva a curva (com voz), mapa a rodar com a direção, sem abrir outras apps |
 | **«Eu também vi» / «Já foi resolvido?»** | Cada pessoa confirma uma vez; o pedido ganha força sem ficar duplicado |
 | **Alertas** | Mudanças de estado das suas ocorrências e novos problemas na zona que acompanha |
 | **Pontos, níveis e ranking** | Olho novo → Olho atento → Vigilante do bairro → Guardião da cidade → Embaixador Townly |
 | **Perfil** | Fotografia (qualquer formato de imagem, incluindo HEIC), nome, email, palavra-passe, atividade e terminar sessão num só sítio |
-| **Definições** | O meu concelho (Distrito → Concelho), notificações, tema claro/escuro, idioma, apagar a conta |
+| **Entrar com o Google** | «Continuar com o Google» cria ou liga a conta de munícipe (OpenID Connect) |
+| **Definições** | O meu concelho (Distrito → Concelho), notificações, tema claro/escuro, idioma, instalar a app, apagar a conta |
+| **App no telemóvel** | Instala-se no ecrã inicial do Android e do iPhone (PWA): ecrã inteiro, ícone, atalhos e atualizações automáticas |
 | **Apagar uma ocorrência** | Enquanto estiver «Registada» ou «Em análise»; o histórico fica guardado |
 | **Como funciona** | Guia passo a passo com imagens reais da aplicação |
 
@@ -166,10 +178,12 @@ flowchart LR
 | Camada | Tecnologia |
 |---|---|
 | Backend | Python 3.11+ · Flask 3 (app factory, blueprints) · Jinja2 |
-| Base de dados | PostgreSQL (psycopg 3, pool de ligações) · SQLite como alternativa sem instalação · 16 migrações versionadas |
+| Base de dados | PostgreSQL (psycopg 3, pool de ligações) · SQLite como alternativa sem instalação · 17 migrações versionadas |
 | Imagens | Pillow (validação pelo conteúdo, rotação EXIF, redução, remoção de metadados GPS) · pillow-heif opcional |
-| Frontend | HTML · CSS próprio · Bootstrap 5 · Leaflet 1.9 com mapas Esri · Source Sans 3 / Source Serif 4 |
-| Mobile | PWA (manifest + service worker, página offline), HTTPS local para GPS no telemóvel |
+| Frontend | HTML · CSS próprio · Bootstrap 5 · Leaflet 1.9 com mapas Esri · Source Sans 3 |
+| Mobile | PWA instalável (manifest com imagens e atalhos, service worker, página offline) · câmara e GPS do telemóvel |
+| Rotas | OSRM / OpenStreetMap (routing.openstreetmap.de) para o caminho em tempo real |
+| Contas | Email e palavra-passe · Google (OpenID Connect, sem bibliotecas extra) |
 | Inteligência | Claude API (visão) para moderação de fotografias · dHash para comparar fotografias |
 | Comunicações | Brevo (email e SMS) · SMTP · pasta `outbox` sem configuração |
 | Servidor | gunicorn · Render · Neon (PostgreSQL gerido) |
@@ -189,16 +203,17 @@ smartfundao/
 ├── supervision.py      estatísticas da plataforma
 ├── similarity.py       deteção de ocorrências repetidas
 ├── moderation.py       moderação de fotografias (Claude API)
+├── google_auth.py      «Continuar com o Google» (OpenID Connect)
 ├── profanity.py        filtro de linguagem imprópria
 ├── territory.py        distritos, concelhos e concelhos ativos
 ├── geo.py              em que freguesia fica um ponto
 ├── mailer.py · sms.py  email e SMS
 ├── db.py               ligação PostgreSQL/SQLite, transações, migrações
 ├── reference.py        dados de referência: freguesias, entidades, categorias
-├── migrations/         postgres/ e sqlite/ (0001 → 0016)
+├── migrations/         postgres/ e sqlite/ (0001 → 0017)
 ├── templates/          páginas Jinja2 (citizen/, admin/, pages/, emails/, errors/)
 ├── static/             css/, js/ (live.js, map.js, new_incident.js), img/, data/ (GeoJSON)
-├── tests/              146 testes automáticos
+├── tests/              151 testes automáticos
 ├── docs/imagens/       imagens deste README
 └── *.command           atalhos para o macOS (duplo clique)
 ```
@@ -223,6 +238,8 @@ smartfundao/
 | `repor_conta_principal.command` | Repõe a conta principal da plataforma |
 | `apagar_contas_camara.command` | Apaga as contas das Câmaras (para as criar de novo) |
 | `apagar_tudo.command` | Recomeça a base de dados do zero |
+| `configurar_google.command` | Guarda as chaves do «Continuar com o Google» no `.env` (o segredo não aparece no ecrã) |
+| `enviar_github.command` | Envia a versão atual para o GitHub (o `.env`, a base de dados e as fotografias nunca vão) |
 
 > No macOS a porta 5000 está ocupada pelo AirPlay Receiver, por isso usamos a 8000.
 
@@ -341,9 +358,9 @@ python -m pytest -q                                                   # SQLite
 TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres python -m pytest -q   # PostgreSQL
 ```
 
-**146 testes automáticos**, todos a passar nas duas bases de dados. Cobrem os testes de aceitação do caderno
+**151 testes automáticos**, todos a passar nas duas bases de dados. Cobrem os testes de aceitação do caderno
 de encargos, contas e permissões, Câmaras por concelho, encaminhamento, estados e histórico, comunidade e pontos,
-repetidos, moderação, perfil, definições, território, SMS e restrições da base de dados.
+repetidos, moderação, perfil, definições, território, SMS, entrar com o Google e restrições da base de dados.
 
 A experiência no telemóvel deve também ser confirmada à mão (`telemovel.command`) ou nas ferramentas de programador do navegador.
 
@@ -355,9 +372,12 @@ A experiência no telemóvel deve também ser confirmada à mão (`telemovel.com
 
 1. **[Neon](https://neon.com)**: criar o projeto (região Frankfurt) e copiar o *connection string*.
 2. **GitHub**: enviar o código para `github.com/geraldosense/Townly_Up`.
-3. **[Render](https://render.com)**: *New → Blueprint* → escolher o repositório. O `render.yaml` cria o serviço;
-   colar o endereço do Neon em `DATABASE_URL` e definir `ADMIN_EMAIL` e `ADMIN_PASSWORD`. O `start.sh` aplica as
-   migrações, cria a conta principal e arranca o `gunicorn`.
+3. **[Render](https://render.com)**: *New → Blueprint* → escolher o repositório. O `render.yaml` (na raiz do repositório,
+   com `rootDir: smartfundao`) cria o serviço; colar o endereço do Neon em `DATABASE_URL`, definir `ADMIN_EMAIL`,
+   `ADMIN_PASSWORD` e `PUBLIC_URL`. O `start.sh` aplica as migrações, cria a conta principal e arranca o `gunicorn`.
+   O Render confirma que a app está viva em `/saude`.
+4. **Telemóveis**: abrir o endereço público e escolher **Instalar a app** (Android) ou **Partilhar › Adicionar ao ecrã principal** (iPhone).
+5. **Google** (opcional): juntar `https://<endereço>/entrar/google/retorno` aos URIs de redirecionamento e definir as duas chaves.
 
 No plano gratuito o site adormece após 15 minutos sem visitas. As fotografias ficam na base de dados,
 porque o disco do Render apaga-se ao reiniciar.
@@ -381,6 +401,7 @@ Nenhuma é obrigatória para correr no Mac. As chaves ficam **sempre** fora do c
 | `BREVO_API_KEY`, `SMS_SENDER` | Email e SMS pela Brevo |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_FROM_NAME` | Email por SMTP |
 | `CONTACT_EMAIL` | Contacto mostrado nas páginas de ajuda |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | «Continuar com o Google» (o último só se o endereço de retorno for fixo) |
 | `TEST_ACCOUNTS` | Permitir as contas de teste |
 | `PLAY_STORE_URL`, `APP_STORE_URL` | Ligações para as futuras apps |
 | `TEMPLATES_AUTO_RELOAD` | Recarregar as páginas durante o desenvolvimento |
@@ -391,7 +412,7 @@ Nenhuma é obrigatória para correr no Mac. As chaves ficam **sempre** fora do c
 
 - **Logótipo**: `static/img/logo.svg` (olho + marcador + anel), também usado como ícone da app.
 - **Cores**: azul-marinho `#0b2a5b` (marca) e verde `#0e9a3e` (ações e sucesso), definidas no topo de `static/css/style.css` (`--tu-*`).
-- **Tipografia**: Source Sans 3 (texto) e Source Serif 4 (títulos).
+- **Tipografia**: Source Sans 3 em toda a app (títulos a negrito).
 - Tema claro por omissão, com tema escuro nas Definições.
 
 ---
