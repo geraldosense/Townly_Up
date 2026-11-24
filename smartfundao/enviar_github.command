@@ -13,6 +13,8 @@ else
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_0159C4EZM2L8GGhkKoNKaCCg"
 fi
+# junta primeiro o que foi alterado diretamente no GitHub (ex.: o README editado no site) e só depois envia
+git -C "$ROOT" pull --rebase --autostash origin main || { echo; echo "ERRO ao juntar as alterações do GitHub. Nada foi enviado."; read -n 1 -s -r -p "Carregue numa tecla para fechar..."; exit 1; }
 git -C "$ROOT" push origin main
 echo
 git -C "$ROOT" status -sb | head -3
